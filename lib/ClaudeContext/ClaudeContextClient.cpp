@@ -111,7 +111,8 @@ ClaudeContextClient::Error ClaudeContextClient::postFile(const char* path) {
     }
     int written = 0;
     while (written < readLen) {
-      const int w = esp_http_client_write(client, reinterpret_cast<const char*>(buf.get()) + written, readLen - written);
+      const int w =
+          esp_http_client_write(client, reinterpret_cast<const char*>(buf.get()) + written, readLen - written);
       if (w < 0) {
         LOG_ERR("CTX", "Socket write failed");
         failed = true;

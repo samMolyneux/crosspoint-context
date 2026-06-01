@@ -50,7 +50,7 @@ void ClaudeContextSettingsActivity::handleSelection() {
     const std::string current = CLAUDE_CONTEXT_STORE.getRelayUrl();
     const std::string prefill = current.empty() ? "https://" : current;
     startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CLAUDE_RELAY_URL),
-                                                                    prefill, 128, InputType::Url),
+                                                                   prefill, 128, InputType::Url),
                            [this](const ActivityResult& result) {
                              if (!result.isCancelled) {
                                const auto& kb = std::get<KeyboardResult>(result.data);

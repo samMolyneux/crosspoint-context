@@ -17,6 +17,10 @@ class ClaudeContextStore {
 
   ClaudeContextStore() = default;
 
+  // Fill any empty field from compile-time defaults (-DCLAUDE_DEFAULT_RELAY_URL /
+  // -DCLAUDE_DEFAULT_WRITE_TOKEN). No-op when those macros are undefined.
+  void applyCompileTimeDefaults();
+
  public:
   ClaudeContextStore(const ClaudeContextStore&) = delete;
   ClaudeContextStore& operator=(const ClaudeContextStore&) = delete;

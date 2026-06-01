@@ -25,33 +25,49 @@ bool ClaudeContextStore::saveToFile() const {
 }
 
 bool ClaudeContextStore::loadFromFile() {
-  if (!Storage.exists(CLAUDE_CONTEXT_FILE_JSON)) {
+  bool loaded = false;
+
+  if (Storage.exists(CLAUDE_CONTEXT_FILE_JSON)) {
+    const String json = Storage.readFile(CLAUDE_CONTEXT_FILE_JSON);
+    if (!json.isEmpty()) {
+      JsonDocument doc;
+      const auto error = deserializeJson(doc, json.c_str());
+      if (error) {
+        LOG_ERR("CTX", "JSON parse error: %s", error.c_str());
+      } else {
+        relayUrl = doc["relayUrl"] | std::string("");
+        bool ok = false;
+        writeToken = obfuscation::deobfuscateFromBase64(doc["writeToken_obf"] | "", &ok);
+        if (!ok) {
+          writeToken.clear();
+        }
+        loaded = true;
+      }
+    }
+  } else {
     LOG_DBG("CTX", "No Claude context config found");
-    return false;
   }
 
-  const String json = Storage.readFile(CLAUDE_CONTEXT_FILE_JSON);
-  if (json.isEmpty()) {
-    return false;
-  }
-
-  JsonDocument doc;
-  const auto error = deserializeJson(doc, json.c_str());
-  if (error) {
-    LOG_ERR("CTX", "JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  relayUrl = doc["relayUrl"] | std::string("");
-
-  bool ok = false;
-  writeToken = obfuscation::deobfuscateFromBase64(doc["writeToken_obf"] | "", &ok);
-  if (!ok) {
-    writeToken.clear();
-  }
+  // Fall back to build-time defaults for anything not set on-device (testing convenience).
+  applyCompileTimeDefaults();
 
   LOG_DBG("CTX", "Loaded Claude context config (configured: %d)", isConfigured());
-  return true;
+  return loaded;
+}
+
+void ClaudeContextStore::applyCompileTimeDefaults() {
+#ifdef CLAUDE_DEFAULT_RELAY_URL
+  if (relayUrl.empty()) {
+    relayUrl = CLAUDE_DEFAULT_RELAY_URL;
+    LOG_DBG("CTX", "Using compile-time default relay URL");
+  }
+#endif
+#ifdef CLAUDE_DEFAULT_WRITE_TOKEN
+  if (writeToken.empty()) {
+    writeToken = CLAUDE_DEFAULT_WRITE_TOKEN;
+    LOG_DBG("CTX", "Using compile-time default write token (temporary/testing)");
+  }
+#endif
 }
 
 void ClaudeContextStore::setConfig(const std::string& url, const std::string& token) {
