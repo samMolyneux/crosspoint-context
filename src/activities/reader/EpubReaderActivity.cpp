@@ -18,6 +18,7 @@
 #include <limits>
 
 #include "BookmarkEntry.h"
+#include "ClaudeContextSendActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderBookmarksActivity.h"
@@ -586,6 +587,36 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
             renderer, mappedInput, savedEpubPath, currentSpineIndex, currentPage, totalPages, std::move(localKoPos),
             std::move(localChapterName), paragraphIndex));
       }
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::SEND_CONTEXT: {
+      const int currentPage = section ? section->currentPage : nextPageNumber;
+      const int totalPages = section ? section->pageCount : cachedChapterTotalPageCount;
+      const std::string savedEpubPath = epub->getPath();
+
+      // Persist current position so the reader resumes at the right page on return.
+      if (!saveProgress(currentSpineIndex, currentPage, totalPages)) {
+        LOG_ERR("CTX", "Aborting send because current progress could not be saved");
+        pendingSyncSaveError = true;
+        requestUpdate();
+        return;
+      }
+
+      const int sendSpineIndex = currentSpineIndex;
+
+      // Release Epub/Section to free heap before the wifi/TLS work. The send activity
+      // reloads metadata for extraction, then releases again before connecting.
+      {
+        RenderLock lock(*this);
+        if (section) {
+          nextPageNumber = section->currentPage;
+        }
+        section.reset();
+        epub.reset();
+      }
+
+      activityManager.replaceActivity(std::make_unique<ClaudeContextSendActivity>(renderer, mappedInput, savedEpubPath,
+                                                                                  sendSpineIndex, currentPage));
       break;
     }
     case EpubReaderMenuActivity::MenuAction::BOOKMARKS: {
