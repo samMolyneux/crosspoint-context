@@ -20,6 +20,7 @@ claude_secrets.ini
 lib/EpdFont/scripts/downloaded_fonts/
 lib/EpdFont/scripts/instanced_fonts/
 lib/EpdFont/scripts/output/
+crosspoint-context.code-workspace
 # Claude Code: share project skills with the team, keep local agent state
 # (worktrees, scheduled-task locks, settings.local, scout CLEANUP.md) out.
 .claude/*

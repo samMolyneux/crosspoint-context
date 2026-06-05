@@ -45,8 +45,10 @@ which we are deliberately removing.
 | **IdP (GitHub/Google)** | Authenticates the human at the verification page → `ownerSub` (keys the slot). |
 | **KV** | Pending-pairing records, the slot/credential table, the context bodies. |
 
-**Baked into firmware:** the server base URL only (public, not a secret). No token baked
-in. The on-device URL field remains as an optional override for self-hosters.
+**Baked into firmware:** the server **origin** only (public, not a secret) — e.g.
+`https://relay.example.com`, no path. The client appends the path itself (`/pair/start`,
+`/ingest`). No token baked in. The on-device URL field remains as an optional self-hoster
+override, now holding just the origin.
 
 ---
 
@@ -144,8 +146,12 @@ Storage (KV):
   dynamic equivalent of the legacy `TOKENS_JSON` write entries.
 - `ctx:<slot>` → the stored body (**unchanged**).
 
-Carried over from [`CONTRACT.md`](CONTRACT.md): tokens stored as `sha256` only; **never log
-`T`, the nonce, or bodies**.
+**Storage model differs from the open relay on purpose.** The open relay stores tokens **raw**
+(`{slot, writeToken, readToken}` in `TOKENS_JSON`, no hashing — [`CONTRACT.md`](CONTRACT.md)
+explains why: the token already exists in plaintext in the firmware + skill). The pairing flow
+is different — the server **mints** `T`, so its plaintext lives only on the device — so this
+side stores only `sha256(T)` (`cred:<writeHash>`); a KV leak exposes no usable token. What
+*does* carry over from [`CONTRACT.md`](CONTRACT.md): **never log `T`, the nonce, or bodies.**
 
 ---
 
@@ -160,11 +166,14 @@ Mostly wiring around code that already exists.
   and URL ([`lib/ClaudeContext/ClaudeContextStore.h`](../../lib/ClaudeContext/ClaudeContextStore.h)).
 
 **New:**
-- A **pairing activity** (e.g. `ClaudePairingActivity`): do `POST /pair/start`, save `T`,
+- A new dedicated activity, **`ClaudePairingActivity`**: do `POST /pair/start`, save `T`,
   render QR + nonce + URL, exit on button. **No poll loop, no timers.**
-- An entry point — add "Pair with Claude" alongside the existing manual entry in
-  `ClaudeContextSettingsActivity`.
-- Server base URL as a compile-time constant (public). Keep the URL override field.
+- A **"Pair with Claude" menu item** in `ClaudeContextSettingsActivity` that launches it via
+  the same `startActivityForResult` pattern the settings menu already uses for
+  `KeyboardEntryActivity` — keeping the full-screen QR/network flow out of the list-menu
+  activity.
+- Server **origin** as a compile-time constant (public); the client appends `/pair/start`,
+  `/ingest`. Keep the URL override field (now holds an origin, not a full endpoint).
 - `T` is server-minted, so the device does **not** need `esp_random()` in this variant.
 
 No change to the streaming upload, the extract-to-SD-then-upload heap dance, or the spoiler
@@ -179,19 +188,23 @@ Both provisioning paths and both wire paths stay live in this phase:
 - **Manual entry kept.** `ClaudeContextSettingsActivity` continues to accept a typed relay
   URL + write token. Pairing is an additional menu option, not a replacement.
 - **Both write tokens accepted.** The ingest handler resolves a presented bearer token to a
-  slot by checking **either** the legacy static `TOKENS_JSON` write hashes **or** the new
-  dynamic `cred:<writeHash>` records. A manually-provisioned token and a paired token are
-  indistinguishable downstream — both just yield a slot.
-- **Legacy read path kept.** The existing `GET /c` + read-token skill flow keeps working;
-  retiring it belongs to the read-side cutover in
-  [`oauth-mcp-plan.md`](oauth-mcp-plan.md) (Phase 3 there), **not** this plan.
+  slot by checking **either** the legacy static `TOKENS_JSON` write tokens (raw match) **or**
+  the new dynamic `cred:<sha256(token)>` records (hashed lookup). A manually-provisioned token
+  and a paired token are indistinguishable downstream — both just yield a slot.
+- **Both write routes alive.** New pairings target `POST /ingest`, but the relay keeps the
+  legacy `POST /c` route mapped to the same ingest handler, so already-configured devices keep
+  pushing without a firmware update.
+- **Legacy read path kept.** The existing `GET /c` + read-token skill flow keeps working. It
+  isn't deleted — it becomes the self-hosting reference in the **open relay repo**; only the
+  *hosted* product stops depending on it (read-side cutover in
+  [`oauth-mcp-plan.md`](oauth-mcp-plan.md), Phase 3 there), **not** this plan.
 - **No forced migration.** Existing users keep their typed token until they choose to
   re-pair.
 
 Dependency note: pairing binds to a **slot via IdP login**, so it relies on the server's
-slot model + IdP from [`oauth-mcp-plan.md`](oauth-mcp-plan.md). Until that read-side work
-lands, pairing can target a single default slot, and the manual token + relay path remains
-the primary, fully-functional route.
+slot model + IdP from [`oauth-mcp-plan.md`](oauth-mcp-plan.md) (its Phase 2 — OAuth +
+`ownerSub → slot`) and is sequenced **after** that lands. Until then, the manual token +
+relay path is the route — which is exactly why it stays fully functional.
 
 ---
 
@@ -213,20 +226,11 @@ the primary, fully-functional route.
 
 ---
 
-## Decisions / open items
-
-- **P1 — Default slot vs full IdP slots.** Ship pairing against a single default slot first
-  (works without the full OAuth read side), or gate it on the IdP/slot model from
-  [`oauth-mcp-plan.md`](oauth-mcp-plan.md). Affects ordering relative to that plan.
-- **P2 — Endpoint naming.** `/ingest` (new) vs keep `POST /c` for writes during coexistence.
-  Cheap either way; the device URL is configurable.
-- **P3 — Nonce TTL / length.** Default ~15 min, ~8 chars unambiguous. Tune for scan-and-go
-  vs typing comfort.
-- **P4 — Pairing entry placement.** New activity vs a mode of `ClaudeContextSettingsActivity`.
-
----
-
 ## Phasing
+
+**Prerequisite:** the IdP + `ownerSub → slot` model from [`oauth-mcp-plan.md`](oauth-mcp-plan.md)
+(its Phase 2). Pairing's approval reuses that owner login and slot binding, so it lands *after*
+the OAuth/slot work — not before.
 
 1. **Server pairing endpoints** — `POST /pair/start`, `GET/POST /pair`, the KV records, and
    dual-token resolution in ingest. Verify with `curl` + a browser before touching firmware:
@@ -235,8 +239,8 @@ the primary, fully-functional route.
    Verify the QR scans, the short-code fallback works, and the first push round-trips.
 3. **Coexistence check** — confirm a manually-entered token *and* a paired token both work
    against the same ingest endpoint; confirm the legacy `GET /c` skill flow is untouched.
-4. **(Later, separate)** Read-side OAuth/MCP cutover — see
-   [`oauth-mcp-plan.md`](oauth-mcp-plan.md).
+4. **(Later, separate)** Full read-side cutover — retire the *hosted* read token — see
+   [`oauth-mcp-plan.md`](oauth-mcp-plan.md) Phase 3.
 
 ---
 

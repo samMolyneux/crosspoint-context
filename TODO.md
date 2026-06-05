@@ -1,0 +1,4 @@
+- Oauth + MCP
+- Remove/clean up default token stuff
+- skill refinement?
+- include past reading some how - maybe a seperate skill

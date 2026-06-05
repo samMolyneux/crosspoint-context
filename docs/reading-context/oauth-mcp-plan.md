@@ -1,4 +1,4 @@
-# Reading Context → Claude: OAuth + MCP Migration Plan
+  # Reading Context → Claude: OAuth + MCP Migration Plan
 
 Migrating the reading-context feature from the shipped **skill + bearer-token + dumb
 relay** design to a **remote MCP server with OAuth** for the read side.
@@ -9,8 +9,9 @@ document and made concrete. It supersedes that section.
 
 > **Status of what exists today** (all hardware-verified — see [`testing.md`](testing.md)):
 > - **Relay**: Cloudflare Worker, two routes on `/c` — `POST /c` (write token) and
->   `GET /c` (read token), KV key `ctx:<slot>`, sha256 token matching against
->   `TOKENS_JSON`. Contract in [`CONTRACT.md`](CONTRACT.md).
+>   `GET /c` (read token), KV key `ctx:<slot>`, **raw** token comparison against
+>   `TOKENS_JSON = [{slot, writeToken, readToken}]` (no hashing — see `CONTRACT.md` for the
+>   rationale). Contract in [`CONTRACT.md`](CONTRACT.md).
 > - **Firmware**: `lib/ClaudeContext/` (`ClaudeContextStore`, `ClaudeContextClient`),
 >   `ClaudeContextSendActivity`, `ClaudeContextSettingsActivity`. Pushes the truncated
 >   book-so-far. Holds relay URL + obfuscated write token; optional compile-time defaults
@@ -46,6 +47,33 @@ hand-minting and distributing token pairs.
 - **The firmware push, in shape.** The device still pushes the truncated book-so-far over
   an authenticated HTTP POST. See "Firmware impact" — the change there is small and mostly
   cleanup.
+
+---
+
+## Repository split (open relay / closed MCP)
+
+The work lands in **two repos with different licenses**, which is what fixes the fate of the
+static-token model and the skill:
+
+| Repo | Visibility | Contains | Auth model |
+|------|-----------|----------|------------|
+| **Relay** | **Open source** | The simple Cloudflare Worker — `POST /ingest` (+ legacy `POST /c`), `GET /c`, KV `ctx:<slot>`, **static `TOKENS_JSON`** write tokens, and the reading-context **skill** as a worked example | bearer write token + bearer read token (manual) |
+| **MCP** | **Closed source** | The hosted product — OAuth (delegated GitHub/Google login), the MCP server + read tools, dynamic **pairing** (`/pair/start`, `/pair`, `cred:<sha256(T)>`), `ownerSub → slot` identity binding | OAuth 2.1 (read) + server-minted, revocable write tokens |
+
+So the **open relay is the self-hosting reference**: minimal, no OAuth, no MCP, no pairing —
+clone it, set a token pair, point the device at it, use the bundled skill. The **closed MCP
+repo is the hosted offering** that adds identity, queryable tools, and typing-free pairing on
+top of the same KV/`ctx:<slot>` storage shape.
+
+The **firmware** (open, in this e-reader repo) talks to **both**: manual token entry targets a
+self-hosted open relay; pairing targets the hosted closed MCP. The two provisioning paths
+already coexist in [`device-pairing-plan.md`](device-pairing-plan.md).
+
+> **Note — to resolve before the relay goes public.** The relay repo currently reaches into
+> the firmware repo by relative path (its source/README/scripts reference
+> `../crosspoint-context/CONTRACT.md`, `secrets.local.json`, and `fake-book.md`). That coupling
+> won't hold once the relay is a standalone public repo — it needs sorting out as part of the
+> open-sourcing, but the approach is left open here.
 
 ---
 
@@ -131,8 +159,10 @@ MCP lets the server ship an `instructions` field and per-tool descriptions. The 
 or web-search its plot, even if you recognise the title" — moves into the server
 instructions and the tool descriptions, so it travels with the connector instead of
 living in a skill file. This is the bulk of the "skill refinement?" TODO item: most of the
-skill's value becomes server-side, and the skill either disappears or shrinks to a thin
-optional companion (decision D4).
+skill's value becomes server-side. The skill is **not** the hosted read path — Claude reads
+via the connector with no skill required — but it lives on in the **open relay repo** as a
+worked example, demonstrating the `GET /c` + read-token contract and the hard-wall/soft-wall
+spoiler discipline end-to-end for self-hosters.
 
 ---
 
@@ -145,32 +175,53 @@ indicators) to avoid token-passthrough / confused-deputy problems. Claude's cust
 connector flow discovers the metadata, performs **Dynamic Client Registration** (RFC 7591),
 and runs the authorization-code-with-PKCE flow in the user's browser.
 
-**Identity / where login happens** — decision D1 below. Two realistic options on
-Cloudflare:
+**Identity.** Login is delegated to an existing IdP via Cloudflare's
+[`workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider) — the
+canonical Cloudflare "remote MCP server with OAuth" pattern. The provider fronts the OAuth
+surface Claude connects to and handles DCR, PKCE, and token issuance; the human login itself
+is delegated upstream to **GitHub or Google** (both offered; the user picks one at the login
+screen). No passwords are stored and there is no bespoke authorization server to secure. The
+OAuth subject becomes the slot key, **namespaced by provider** (`github:<id>` / `google:<sub>`)
+so the two can't collide. One consequence to surface in the UX: a user must log in with the
+*same* provider on the pairing-approval page and on the Claude connector to land on the same
+slot.
 
-- **Delegated IdP** (recommended): use Cloudflare's
-  [`workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider) as the
-  OAuth server, delegating the actual login to an existing IdP (GitHub or Google). This is
-  the canonical Cloudflare "remote MCP server with OAuth" pattern; the provider handles
-  DCR, PKCE, and token issuance, and the user logs in with an account they already have.
-  The OAuth subject (e.g. GitHub user id / verified email) becomes the slot key.
-- **Self-issued**: the Worker is its own authorization server with a minimal credential.
-  More code, more to get wrong on the security-sensitive path; only worth it to avoid an
-  external IdP dependency.
-
-**Slot binding after migration.** The token table record changes from
-`{ slot, writeHash, readHash }` to roughly:
+**Slot binding.** A slot is keyed by the logged-in identity — `ownerSub → slot` — which
+replaces the read token entirely; the hosted side issues no read token. The *device* binds
+separately via its write credential. The three KV relationships:
 
 ```jsonc
-{
-  "slot": "me",
-  "writeHash": "<sha256 of the device write token>",  // device → slot (unchanged mechanism)
-  "ownerSub": "<oauth subject>"                         // human identity → slot (replaces readHash)
-}
+ownerSub:<oauth subject>  → slot     // human identity → slot (replaces the read token)
+cred:<sha256(T)>          → slot     // device credential → slot (server-minted at pairing)
+ctx:<slot>                → body     // the stored book-so-far (unchanged)
 ```
 
-The read path is authorized by matching the OAuth token's subject/audience to `ownerSub`;
-`readHash` is retired.
+The read path is authorized by matching the OAuth token's subject/audience to `ownerSub`. The
+device side is detailed in [Write-token model](#write-token-model) below.
+
+---
+
+## Write-token model
+
+The device authenticates its push with a long-lived bearer token. Two provisioning paths
+coexist, mapping onto the repo split:
+
+- **Self-hosted (open relay): static, raw.** `TOKENS_JSON = [{slot, writeToken, readToken}]`
+  baked into the Worker config; a presented token is compared directly, no hashing — the token
+  already lives in plaintext in the firmware and skill, so a stored hash would protect only one
+  of several copies. Provisioned by typing the token into `ClaudeContextSettingsActivity`;
+  revoked by editing the config and redeploying. Deliberately minimal — no minting endpoint, no
+  runtime management UI.
+- **Hosted (closed MCP): dynamic, hashed.** The server mints the token `T` during pairing (see
+  [`device-pairing-plan.md`](device-pairing-plan.md)) and stores only `cred:<sha256(T)> → {slot}`.
+  Because the server mints `T`, its plaintext lives only on the device, so hashing means a store
+  leak exposes no usable token. Each device gets its own record, individually revocable at
+  runtime with a single `KV.delete` — which makes lost-device and re-pair trivial and touches
+  nothing else (not the read side, not `ctx:<slot>`, not other devices).
+
+The ingest handler resolves a presented bearer token to a slot via **either** a raw `TOKENS_JSON`
+match **or** a hashed `cred:<sha256(token)>` lookup, so a manually-configured device and a paired
+device are indistinguishable downstream.
 
 ---
 
@@ -181,8 +232,10 @@ must be updated in lockstep. This migration touches it as follows:
 
 1. **`GET /c` retired** on the read side, replaced by MCP tools + OAuth. (Keep it during
    the transition — see phasing — then remove.)
-2. **Write path**: keep `POST` with `Authorization: Bearer <write token>`. The path may
-   move from `/c` to a clearer `/ingest` (decision D3); body format unchanged for the MVP.
+2. **Write path**: keep `POST` with `Authorization: Bearer <write token>`. The path is
+   `/ingest`; the device stores the origin only and the client appends the path. Body format
+   unchanged for the MVP. `CONTRACT.md` is updated to `POST /ingest` when this route lands
+   (Phase 1).
 3. **(Optional, deferred)** Add section markers to the body to enable chapter-scoped tools.
    This is a real three-sided change (firmware emits markers, server parses them, tools use
    them) and a body-format version bump — **out of scope for the MVP**, noted so the tool
@@ -199,21 +252,25 @@ the migration.
 The device keeps pushing a truncated markdown body over an authenticated POST, so
 `lib/ClaudeContext/` and the two activities stay structurally as-is. Concrete changes:
 
-1. **Remove the compile-time default tokens** (TODO item 2 — "Remove/clean up default
-   token stuff"). Drop `-DCLAUDE_DEFAULT_RELAY_URL` / `-DCLAUDE_DEFAULT_WRITE_TOKEN` and
+1. **Remove the compile-time default _token_** (TODO item 2 — "Remove/clean up default
+   token stuff"). Drop `-DCLAUDE_DEFAULT_WRITE_TOKEN` and the token branch of
    `ClaudeContextStore::applyCompileTimeDefaults()`
-   ([`ClaudeContextStore.h:20-22`](../../lib/ClaudeContext/ClaudeContextStore.h)). These
-   were a testing convenience; with a deployed server the device is configured on-device
-   via `ClaudeContextSettingsActivity` (or a provisioning step), and a baked-in default
-   token is a credential-handling smell. Verify nothing in `platformio.ini` /
-   `platformio.local.ini` still sets them after removal.
-2. **Point the relay URL at the new server** and, if D3 moves the write path, update the
-   endpoint (settings field already supports an arbitrary URL — `getNormalisedUrl()` in
-   [`ClaudeContextStore.h:42-43`](../../lib/ClaudeContext/ClaudeContextStore.h)).
-3. **Write-token provisioning** (decision D2): the write token becomes a per-device,
-   server-revocable credential. The on-device entry path
-   (`ClaudeContextSettingsActivity`) already covers manual entry; no new firmware needed
-   unless we want server-issued tokens.
+   ([`ClaudeContextStore.h:20-22`](../../lib/ClaudeContext/ClaudeContextStore.h)) — a
+   baked-in default token is a credential-handling smell. **Keep `-DCLAUDE_DEFAULT_RELAY_URL`**:
+   the base URL is public (not a secret), and the new pairing flow relies on it being baked in
+   so the user never types it (see [`device-pairing-plan.md`](device-pairing-plan.md)). Verify
+   nothing in `platformio.ini` / `platformio.local.ini` still sets the token default after removal.
+2. **Point the baked-in URL at the new server.** The store holds the **origin only** and the
+   client appends `POST /ingest`, so `getNormalisedUrl()`
+   ([`ClaudeContextStore.h:42-43`](../../lib/ClaudeContext/ClaudeContextStore.h)) returns the
+   scheme-normalised origin without a path, and `ClaudeContextClient::postFile` appends `/ingest`
+   before calling `esp_http_client_set_url`. The on-device URL field stays as an optional
+   self-hoster override — now a short origin, not a full endpoint.
+3. **Write-token provisioning.** The device supports both paths from the
+   [Write-token model](#write-token-model): manual entry via `ClaudeContextSettingsActivity`
+   (for a self-hosted relay) and the typing-free pairing flow that receives a server-minted
+   token (for the hosted product, see [`device-pairing-plan.md`](device-pairing-plan.md)).
+   Manual entry already exists; pairing is the one genuinely new firmware activity.
 
 No change to the streaming/chunked upload, the extract-to-SD-then-upload heap dance, or the
 spoiler truncation logic. Re-run the firmware checks from [`testing.md`](testing.md) §2a
@@ -223,8 +280,6 @@ single on-hardware send to confirm the deployed-HTTPS path still round-trips.
 ---
 
 ## Phasing (each phase independently verifiable, like the original three-piece build)
-
-**Phase 0 — Decisions.** Resolve D1–D4 below. No code.
 
 **Phase 1 — Stand up the MCP server next to the existing relay.** Keep `POST` (ingest) and
 `GET /c` working so the shipped skill+token path keeps functioning. Add the MCP transport +
@@ -236,35 +291,22 @@ auth), advertise protected-resource metadata, map `ownerSub → slot`. Connect f
 as a custom connector, log in, and confirm: tools work; a second identity gets its own
 (empty) slot; one user can't read another's context.
 
-**Phase 3 — Cut over the read side.** Move the soft-wall guidance into server instructions
-/ tool descriptions. Retire the read token and `readHash`; slim or remove the skill (D4).
-Remove `GET /c` once nothing depends on it.
+**Phase 3 — Cut over the *hosted* read side.** In the closed MCP product, move the soft-wall
+guidance into server instructions / tool descriptions; the hosted read path is OAuth + tools,
+so the read token is no longer part of it. **`GET /c`, the read token, and the skill are not
+deleted — they stay in the open relay repo** as the self-hosting reference. "Retire" here means
+*the hosted product stops depending on them*, not removal from the codebase.
 
-**Phase 4 — Firmware cleanup.** Remove the default-token macros, repoint/rename the write
-endpoint, settle write-token provisioning. Re-verify on hardware.
+**Phase 4 — Firmware cleanup.** Remove the default write-token macro (keep the baked-in URL),
+repoint/rename the write endpoint via that compile-time constant, settle write-token
+provisioning. Re-verify on hardware.
 
 **Phase 5 — Multi-user (optional).** "Friends" becomes: each person logs in (own identity →
 own slot) and gets a per-device write token. No token-pair distribution.
 
-Build order keeps the working system live throughout: the old skill+token read path is only
-removed in Phase 3, *after* the MCP read path is proven in Phase 2.
-
----
-
-## Decisions to make (Phase 0)
-
-- **D1 — Identity provider.** Delegated IdP (GitHub/Google via `workers-oauth-provider`,
-  recommended) vs self-issued auth. Affects how a user "logs in" to the connector and what
-  `ownerSub` is.
-- **D2 — Write-token lifecycle.** Keep manually-entered device tokens, or have the server
-  issue/revoke per-device tokens (e.g. a small authed page that mints a token for a slot).
-  Revocability is the main argument for server-issued.
-- **D3 — Write endpoint path.** Keep `POST /c`, or rename to `/ingest` for clarity now that
-  read is no longer a sibling `GET /c`. Cheap to do during this migration; a settings-field
-  URL change on the device.
-- **D4 — Fate of the skill.** Fold all guidance into MCP server instructions and delete the
-  skill, or keep a thin skill as an optional companion (e.g. for users who can't add a
-  connector). Recommended: server instructions primary; skill optional/deprecated.
+Build order keeps the working system live throughout: the hosted product stops depending on
+the skill+token read path only in Phase 3, *after* the MCP read path is proven in Phase 2 —
+and even then that path lives on in the open relay repo for self-hosters.
 
 ---
 
@@ -294,4 +336,4 @@ From the repo-root `TODO.md`:
 |-----------|-----------|
 | OAuth + MCP | This whole document (Phases 1–3, 5) |
 | Remove/clean up default token stuff | Phase 4, item 1 (drop `-DCLAUDE_DEFAULT_*`) |
-| skill refinement? | Phase 3 + D4 (guidance → server instructions; skill slimmed/retired) |
+| skill refinement? | Phase 3 (guidance → server instructions; skill retained as the open-relay example) |
