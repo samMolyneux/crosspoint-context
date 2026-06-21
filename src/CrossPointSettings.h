@@ -134,7 +134,18 @@ class CrossPointSettings {
   };
 
   // Short power button press actions
-  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, FORCE_REFRESH = 3, SHORT_PWRBTN_COUNT };
+  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, FORCE_REFRESH = 3, FOOTNOTES = 4, SHORT_PWRBTN_COUNT };
+
+  // Long-press Confirm action while reading an EPUB. The setting cycles through these values.
+  // Persisted in settings.json by index: any new function (e.g. dictionary, bookmark) MUST use a
+  // value >= 2 and be appended at the END of the enumValues array in SettingsList.h, otherwise the
+  // stored indices shift and existing saves are silently misinterpreted.
+  enum LONG_PRESS_MENU_FUNCTION {
+    LP_MENU_KOSYNC = 0,
+    LP_MENU_DISABLED = 1,
+    LP_MENU_BOOKMARK = 2,
+    LONG_PRESS_MENU_FUNCTION_COUNT
+  };
 
   // Hide battery percentage
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
@@ -226,10 +237,15 @@ class CrossPointSettings {
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press page turn button behavior
   uint8_t longPressButtonBehavior = OFF;
+  // Long-press Confirm function in EPUB reader (cycles through LONG_PRESS_MENU_FUNCTION values).
+  // Defaults to Bookmark to preserve the upstream long-press-Confirm-adds-bookmark behavior.
+  uint8_t longPressMenuFunction = LP_MENU_BOOKMARK;
   // UI Theme
   uint8_t uiTheme = LYRA;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
+  // Power button return from footnotes (1 = enabled, 0 = disabled)
+  uint8_t pwrBtnFootnoteBack = 1;
   // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
   uint8_t embeddedStyle = 1;
   // Focus Reading - emphasizes the first part of words with bold

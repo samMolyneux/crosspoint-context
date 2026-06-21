@@ -91,6 +91,8 @@ void GfxRenderer::begin() {
   bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
 }
 
+bool GfxRenderer::isFontCacheScanning() const { return fontCacheManager_ && fontCacheManager_->isScanning(); }
+
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
   auto result = fontMap.insert({fontId, font});
   if (!result.second) {
@@ -1435,8 +1437,18 @@ int GfxRenderer::getTextAdvanceX(const int fontId, const char* text, EpdFontFami
     int32_t widthFP = 0;
     const bool isSupSub = (style & (EpdFontFamily::SUP | EpdFontFamily::SUB)) != 0;
     const uint8_t styleIdx = resolveSdCardStyle(*sdIt->second, style);
+    const auto fontIt = fontMap.find(fontId);
+    if (fontIt == fontMap.end()) {
+      LOG_ERR("GFX", "Font %d not found", fontId);
+      return 0;
+    }
+    const auto& font = fontIt->second;
     while (uint32_t cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text))) {
       int32_t advFP = sdIt->second->getAdvance(cp, styleIdx);
+      if (advFP == 0 && !utf8IsCombiningMark(cp)) {
+        const EpdGlyph* glyph = font.getGlyph(cp, style);
+        advFP = glyph ? glyph->advanceX : 0;
+      }
       widthFP += isSupSub ? (advFP + 1) / 2 : advFP;
     }
     return fp4::toPixel(widthFP);
