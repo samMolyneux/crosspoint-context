@@ -57,7 +57,8 @@ ClaudeContextClient::Error ClaudeContextClient::postFile(const char* path) {
     return NOT_CONFIGURED;
   }
 
-  const std::string url = store.getNormalisedUrl();
+  // The store holds the server origin; the device writes to its /ingest endpoint.
+  const std::string url = store.getNormalisedUrl() + "/ingest";
   const bool isHttps = url.rfind("https://", 0) == 0;
 
   HalFile file;

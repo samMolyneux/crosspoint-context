@@ -12,9 +12,9 @@
  * QR (plus a short, typeable nonce) that the user finishes on their phone. No polling — the
  * device shows the code and is done; the next "Send context" doubles as the success check.
  *
- * The hosted server origin is baked in at build time (-DCLAUDE_DEFAULT_PAIRING_ORIGIN);
- * pairing is only offered when that is present. Manual URL + token entry remains the
- * alternative provisioning path.
+ * Pairs against the device's configured server origin (the baked-in
+ * -DCLAUDE_DEFAULT_RELAY_URL default, or a self-hoster's override); pairing is only offered
+ * when an origin is set. Manual URL + token entry remains the alternative provisioning path.
  */
 class ClaudePairingActivity final : public Activity {
  public:

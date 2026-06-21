@@ -59,15 +59,11 @@ void ClaudeContextStore::applyCompileTimeDefaults() {
 #ifdef CLAUDE_DEFAULT_RELAY_URL
   if (relayUrl.empty()) {
     relayUrl = CLAUDE_DEFAULT_RELAY_URL;
-    LOG_DBG("CTX", "Using compile-time default relay URL");
+    LOG_DBG("CTX", "Using compile-time default server origin");
   }
 #endif
-#ifdef CLAUDE_DEFAULT_WRITE_TOKEN
-  if (writeToken.empty()) {
-    writeToken = CLAUDE_DEFAULT_WRITE_TOKEN;
-    LOG_DBG("CTX", "Using compile-time default write token (temporary/testing)");
-  }
-#endif
+  // No compile-time default write token: a baked-in credential is a security smell, and the
+  // token is now obtained per-device via pairing (or manual entry). See device-pairing-plan.md.
 }
 
 void ClaudeContextStore::setConfig(const std::string& url, const std::string& token) {
@@ -84,17 +80,17 @@ std::string ClaudeContextStore::getNormalisedUrl() const {
     return "";
   }
 
-  std::string url;
-  if (relayUrl.find("://") == std::string::npos) {
-    // No scheme: default to https (the deployed relay). Local plain-HTTP relays must
-    // include the explicit http:// scheme when configured.
-    url = "https://" + relayUrl;
-  } else {
-    url = relayUrl;
-  }
+  // No scheme: default to https (the deployed server). Local plain-HTTP servers must
+  // include the explicit http:// scheme when configured.
+  std::string url = relayUrl.find("://") == std::string::npos ? "https://" + relayUrl : relayUrl;
 
-  while (!url.empty() && url.back() == '/') {
-    url.pop_back();
+  // Reduce to the origin only (scheme://host[:port]). The store holds an origin; callers
+  // append the path themselves (postFile -> /ingest, pairing -> /pair/start). This also
+  // strips any trailing slash and any path a prior config or pairing may have left behind.
+  const size_t schemeEnd = url.find("://");
+  const size_t pathStart = url.find('/', schemeEnd + 3);
+  if (pathStart != std::string::npos) {
+    url.erase(pathStart);
   }
   return url;
 }

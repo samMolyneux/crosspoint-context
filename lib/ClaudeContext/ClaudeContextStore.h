@@ -12,13 +12,13 @@
 class ClaudeContextStore {
  private:
   static ClaudeContextStore instance;
-  std::string relayUrl;    // full relay endpoint, e.g. https://reading-relay.example.workers.dev/c
+  std::string relayUrl;    // server origin, e.g. https://crosspoint-context-mcp.example.workers.dev
   std::string writeToken;  // bearer token; obfuscated at rest
 
   ClaudeContextStore() = default;
 
-  // Fill any empty field from compile-time defaults (-DCLAUDE_DEFAULT_RELAY_URL /
-  // -DCLAUDE_DEFAULT_WRITE_TOKEN). No-op when those macros are undefined.
+  // Fill the relay URL from the compile-time default (-DCLAUDE_DEFAULT_RELAY_URL) when unset.
+  // No-op when the macro is undefined. There is deliberately no default write token.
   void applyCompileTimeDefaults();
 
  public:
@@ -38,8 +38,8 @@ class ClaudeContextStore {
   const std::string& getRelayUrl() const { return relayUrl; }
   const std::string& getWriteToken() const { return writeToken; }
 
-  // Relay URL normalised for use: adds https:// if no scheme is present and strips any
-  // trailing slashes. Returns empty if no URL is configured.
+  // The configured server as a normalised origin: adds https:// if no scheme is present and
+  // strips any path/trailing slash (callers append /ingest, /pair/start). Empty if unset.
   std::string getNormalisedUrl() const;
 
   // True when both the relay URL and the write token are set.

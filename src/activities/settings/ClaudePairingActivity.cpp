@@ -21,12 +21,6 @@
 #include "util/QrUtils.h"
 
 namespace {
-#ifdef CLAUDE_DEFAULT_PAIRING_ORIGIN
-constexpr const char* PAIRING_ORIGIN = CLAUDE_DEFAULT_PAIRING_ORIGIN;
-#else
-constexpr const char* PAIRING_ORIGIN = "";
-#endif
-
 // Non-secret label shown on the phone's consent screen, e.g. "CrossPoint A1B2" (last 2 MAC
 // bytes) — lets the owner confirm it's their device before approving.
 std::string deviceLabel() {
@@ -35,15 +29,6 @@ std::string deviceLabel() {
   char buf[24];
   snprintf(buf, sizeof(buf), "CrossPoint %02X%02X", mac[4], mac[5]);
   return std::string(buf);
-}
-
-// Origin with any trailing slashes removed, so paths can be appended cleanly.
-std::string normalisedOrigin() {
-  std::string base = PAIRING_ORIGIN;
-  while (!base.empty() && base.back() == '/') {
-    base.pop_back();
-  }
-  return base;
 }
 
 // Greedily pack characters into lines each <= maxWidth px, UTF-8 safe (never splits a
@@ -87,7 +72,10 @@ std::vector<std::string> wrapToWidth(const GfxRenderer& renderer, const int font
 void ClaudePairingActivity::onEnter() {
   Activity::onEnter();
 
-  if (PAIRING_ORIGIN[0] == '\0') {
+  // Pair against the device's configured server origin (the baked-in default
+  // -DCLAUDE_DEFAULT_RELAY_URL on a fresh device, or a self-hoster's override). Without one
+  // there is nothing to pair against.
+  if (CLAUDE_CONTEXT_STORE.getNormalisedUrl().empty()) {
     state = UNAVAILABLE;
     requestUpdate();
     return;
@@ -133,8 +121,8 @@ void ClaudePairingActivity::performPairing() {
   }
   requestUpdateAndWait();
 
-  const ClaudeContextClient::Error err =
-      ClaudeContextClient::pairStart(normalisedOrigin(), deviceLabelText, pairResult);
+  const std::string origin = CLAUDE_CONTEXT_STORE.getNormalisedUrl();
+  const ClaudeContextClient::Error err = ClaudeContextClient::pairStart(origin, deviceLabelText, pairResult);
 
   // Drop the radio while the user finishes on their phone; full teardown is at silent reboot.
   esp_wifi_stop();
@@ -142,9 +130,9 @@ void ClaudePairingActivity::performPairing() {
   {
     RenderLock lock(*this);
     if (err == ClaudeContextClient::OK) {
-      // Point this device's push path at the hosted MCP /ingest with the freshly minted token.
-      // That token only resolves at /ingest (hashed cred lookup), not the legacy relay /c.
-      CLAUDE_CONTEXT_STORE.setConfig(normalisedOrigin() + "/ingest", pairResult.writeToken);
+      // Save the minted token against the same origin. The push path (postFile) appends
+      // /ingest; the token resolves there via the server's hashed cred lookup.
+      CLAUDE_CONTEXT_STORE.setConfig(origin, pairResult.writeToken);
       CLAUDE_CONTEXT_STORE.saveToFile();
       state = SHOW_QR;
     } else {

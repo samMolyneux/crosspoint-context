@@ -6,10 +6,11 @@ deeper designs are [`oauth-mcp-plan.md`](oauth-mcp-plan.md),
 [`device-pairing-plan.md`](device-pairing-plan.md), and the wire contract
 [`CONTRACT.md`](CONTRACT.md).
 
-**Snapshot:** 2026-06-08. **Stages 0–2 done + verified on the real Claude connector; Track B
-Phase 1 (pairing — server) done, deployed + verified; Phase 2 (pairing — firmware) built and
-compiles, on-device test pending.** Next work: flash + hardware-test pairing end-to-end, then
-Stage 4 (firmware cleanup).
+**Snapshot:** 2026-06-08. **Stages 0–2 done + verified on the Claude connector; Track B
+Phase 1 (pairing — server) deployed + verified; Phase 2 (pairing — firmware) hardware-verified
++ pushed (`d93d33f`); Stage 4 (firmware cleanup) built + compiles, on-device test pending.**
+Next work: flash + confirm one Send context round-trips, commit Stage 4. Then the migration is
+functionally complete (remaining items are polish: page off-by-one, MCP tool latitude, security check).
 
 ---
 
@@ -59,8 +60,8 @@ decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be ope
 | 2 — OAuth (GitHub + Google) | ✅ | DCR + PKCE + RFC 9728 metadata; provider-pick login; `ownerSub → slot`; `/mcp` gated by `ctx.props.slot`. **Verified end-to-end on the Claude connector** (tools work; second identity isolated; no cross-user reads) |
 | 3 / Track A — read cutover | ✅ by construction | Soft-wall already server-side; hosted read = OAuth + tools; nothing depends on the skill/read-token. Only a README tidy remains |
 | **Track B Phase 1 — pairing (server)** | ✅ | `POST /pair/start` (mint `T` + nonce), `GET /pair?c=` (reuses IdP login + `ownerSub → slot`, then consent), `POST /pair` (commit `cred:<sha256(T)> → slot`, consume nonce). Ingest now resolves static `TOKENS_JSON` **or** hashed `cred:`. In the MCP repo (`src/pairing.ts`, `src/http.ts`); curl-reachable legs pass `./verify.sh` (10–17). IdP→approve→push leg is browser-verified |
-| **Track B Phase 2 — pairing (firmware)** | 🟡 built, on-device test pending | `ClaudePairingActivity` (`src/activities/settings/`): one `POST <origin>/pair/start`, saves `<origin>/ingest` + minted `T` via `ClaudeContextStore`, renders QR (`QrUtils::drawQrCode`) of `verification_uri_complete` + nonce, exits — no poll; `silentRestart()` on exit. Menu item added to `ClaudeContextSettingsActivity`. New `ClaudeContextClient::pairStart()` does the HTTPS POST + parses the JSON. Origin baked via `-DCLAUDE_DEFAULT_PAIRING_ORIGIN` (in `claude_secrets.ini`/`platformio.local.ini`). **Compiles** (`pio run` SUCCESS, RAM 30.9%); **needs hardware**: QR scans, short-code fallback, first push round-trips |
-| **Stage 4 — firmware cleanup** | ⬜ | Drop `-DCLAUDE_DEFAULT_WRITE_TOKEN`; repoint device URL to MCP `/ingest`. See [`oauth-mcp-plan.md`](oauth-mcp-plan.md) Phase 4 |
+| **Track B Phase 2 — pairing (firmware)** | ✅ hardware-verified | `ClaudePairingActivity` (`src/activities/settings/`): one `POST <origin>/pair/start`, saves the minted `T` via `ClaudeContextStore`, renders QR (`QrUtils::drawQrCode`) of `verification_uri_complete` + nonce + the full URL (char-wrapped) + device label, exits — no poll; `silentRestart()` on exit. Menu item in `ClaudeContextSettingsActivity`. New `ClaudeContextClient::pairStart()` does the HTTPS POST + JSON parse. Paired + pushed end-to-end on device. Commit `d93d33f` |
+| **Stage 4 — firmware cleanup** | 🟡 built, on-device test pending | Dropped `-DCLAUDE_DEFAULT_WRITE_TOKEN` + its `applyCompileTimeDefaults()` branch (no baked credential). Store now holds the **origin only**: `getNormalisedUrl()` strips any path, `ClaudeContextClient::postFile` appends `/ingest`, pairing appends `/pair/start`. Unified on `-DCLAUDE_DEFAULT_RELAY_URL` (now the MCP origin) and **retired the redundant `-DCLAUDE_DEFAULT_PAIRING_ORIGIN`** — pairing derives its origin from the store. Path-stripping means the existing paired device keeps working **without a re-pair**. **Compiles** (`pio run` SUCCESS, RAM 30.9%); **needs hardware**: one Send context round-trips on the deployed HTTPS path |
 
 ## Bugs fixed during Stage 2 (for context)
 
@@ -77,12 +78,12 @@ decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be ope
 ## How to resume
 
 1. Skim this doc + [`migration-build-order.md`](migration-build-order.md).
-2. **Flash + hardware-test pairing.** Both server (Phase 1, deployed) and firmware (Phase 2,
-   compiles) are in place. `pio run -t upload`, then Settings → Claude Context → **Pair with
-   Claude**: confirm the QR scans to the consent page, the short-code fallback works, approve
-   on phone, then **Send context** should round-trip (the device now points at MCP `/ingest`
-   with the minted token). The first push doubles as the pairing success check (401 ⇒ finish
-   on phone and retry). Then Stage 4 (firmware cleanup) is independent and can follow.
+2. **Flash + confirm Stage 4 push.** Stage 4 (origin-only store, client appends `/ingest`,
+   default write token dropped) compiles but is not yet hardware-tested or committed.
+   `pio run -t upload`, then reader → **Send context to Claude** → expect "Context sent!"
+   (the existing paired token still works — `getNormalisedUrl()` strips the old `/ingest`
+   path, so no re-pair needed). Optionally re-pair to confirm that path too. Then commit Stage 4.
+   After that the migration is functionally complete; remaining items are polish.
 
 ### Verify the live system is still healthy
 ```bash
