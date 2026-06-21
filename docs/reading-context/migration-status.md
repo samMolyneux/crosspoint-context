@@ -6,8 +6,10 @@ deeper designs are [`oauth-mcp-plan.md`](oauth-mcp-plan.md),
 [`device-pairing-plan.md`](device-pairing-plan.md), and the wire contract
 [`CONTRACT.md`](CONTRACT.md).
 
-**Snapshot:** 2026-06-05. **Stages 0–2 done and verified on the real Claude connector.**
-Next work: Track B (device pairing) and Stage 4 (firmware cleanup).
+**Snapshot:** 2026-06-08. **Stages 0–2 done + verified on the real Claude connector; Track B
+Phase 1 (pairing — server) done, deployed + verified; Phase 2 (pairing — firmware) built and
+compiles, on-device test pending.** Next work: flash + hardware-test pairing end-to-end, then
+Stage 4 (firmware cleanup).
 
 ---
 
@@ -17,7 +19,7 @@ Next work: Track B (device pairing) and Stage 4 (firmware cleanup).
 |------|------|---------------------|--------|---------------|
 | **firmware** | `~/Projects/crosspoint-context` | this repo (open) | `main` | `48e7f07` |
 | **relay** (open) | `~/Projects/crosspoint-context-relay` | `github.com/samMolyneux/crosspoint-context-relay` | `main` | `83f9127` |
-| **MCP** (closed) | `~/Projects/crosspoint-context-mcp` | `github.com/samMolyneux/crosspoint-context-mcp` (**private**) | `main` | `6b86136` |
+| **MCP** (closed) | `~/Projects/crosspoint-context-mcp` | `github.com/samMolyneux/crosspoint-context-mcp` (**private**) | `main` | `c42b9b0` |
 
 The closed MCP repo is a fresh standalone Worker; pairing lives there only. The relay was
 decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be open-sourced.
@@ -27,13 +29,15 @@ decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be ope
 | Worker | URL | Purpose |
 |--------|-----|---------|
 | `reading-relay` | `https://reading-relay.mount-payments.workers.dev` | `GET /c` + `POST /c` static-token relay (device writes here today) |
-| `crosspoint-context-mcp` | `https://crosspoint-context-mcp.mount-payments.workers.dev` | OAuth-gated MCP read tools + ingest; deployed version `90a5f150` |
+| `crosspoint-context-mcp` | `https://crosspoint-context-mcp.mount-payments.workers.dev` | OAuth-gated MCP read tools + ingest + **device pairing** (`/pair/start`, `/pair`); deployed version `a65cdc1e` |
 
 **KV namespaces:**
 - `CTX` = `e6752fe976de4118a3a22a405e29bf53` — **shared** by both Workers. Holds `ctx:<slot>`
-  (book bodies) and `ownerSub:<sub> → slot` mappings.
+  (book bodies), `ownerSub:<sub> → slot` mappings, and now `cred:<sha256(T)> → {slot}` (durable
+  paired write credentials, hashed).
 - `OAUTH_KV` = `b9b0bc0517af47e89af557eda1ca8893` — MCP worker only (grants, tokens, DCR
-  clients, short-lived `login:<state>` records).
+  clients, short-lived `login:<state>` records, and now ephemeral pairing state:
+  `pair:<nonce>` and `approve:<state>`, both TTL'd).
 
 ## Live runtime state (verified via Cloudflare API)
 
@@ -54,7 +58,8 @@ decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be ope
 | 1 — MCP tools | ✅ | `get_progress`, `search_reading_context`, `get_recent_text` over `ctx:<slot>`; stateless Streamable HTTP `/mcp`; soft-wall in server `instructions` |
 | 2 — OAuth (GitHub + Google) | ✅ | DCR + PKCE + RFC 9728 metadata; provider-pick login; `ownerSub → slot`; `/mcp` gated by `ctx.props.slot`. **Verified end-to-end on the Claude connector** (tools work; second identity isolated; no cross-user reads) |
 | 3 / Track A — read cutover | ✅ by construction | Soft-wall already server-side; hosted read = OAuth + tools; nothing depends on the skill/read-token. Only a README tidy remains |
-| **Track B — device pairing** | ⬜ **next** | QR/nonce, `/pair/start` + `/pair`, dynamic `cred:<sha256(T)>`; prerequisite (OAuth/slot model) now in place. See [`device-pairing-plan.md`](device-pairing-plan.md) |
+| **Track B Phase 1 — pairing (server)** | ✅ | `POST /pair/start` (mint `T` + nonce), `GET /pair?c=` (reuses IdP login + `ownerSub → slot`, then consent), `POST /pair` (commit `cred:<sha256(T)> → slot`, consume nonce). Ingest now resolves static `TOKENS_JSON` **or** hashed `cred:`. In the MCP repo (`src/pairing.ts`, `src/http.ts`); curl-reachable legs pass `./verify.sh` (10–17). IdP→approve→push leg is browser-verified |
+| **Track B Phase 2 — pairing (firmware)** | 🟡 built, on-device test pending | `ClaudePairingActivity` (`src/activities/settings/`): one `POST <origin>/pair/start`, saves `<origin>/ingest` + minted `T` via `ClaudeContextStore`, renders QR (`QrUtils::drawQrCode`) of `verification_uri_complete` + nonce, exits — no poll; `silentRestart()` on exit. Menu item added to `ClaudeContextSettingsActivity`. New `ClaudeContextClient::pairStart()` does the HTTPS POST + parses the JSON. Origin baked via `-DCLAUDE_DEFAULT_PAIRING_ORIGIN` (in `claude_secrets.ini`/`platformio.local.ini`). **Compiles** (`pio run` SUCCESS, RAM 30.9%); **needs hardware**: QR scans, short-code fallback, first push round-trips |
 | **Stage 4 — firmware cleanup** | ⬜ | Drop `-DCLAUDE_DEFAULT_WRITE_TOKEN`; repoint device URL to MCP `/ingest`. See [`oauth-mcp-plan.md`](oauth-mcp-plan.md) Phase 4 |
 
 ## Bugs fixed during Stage 2 (for context)
@@ -72,9 +77,12 @@ decoupled from this firmware repo (vendored CONTRACT + fixture) so it can be ope
 ## How to resume
 
 1. Skim this doc + [`migration-build-order.md`](migration-build-order.md).
-2. Pick up at **Track B (device pairing)** — read [`device-pairing-plan.md`](device-pairing-plan.md).
-   The firmware side adds a `ClaudePairingActivity`; the server side adds `/pair/start` +
-   `/pair` + dual-token resolution in ingest, in the **MCP repo**.
+2. **Flash + hardware-test pairing.** Both server (Phase 1, deployed) and firmware (Phase 2,
+   compiles) are in place. `pio run -t upload`, then Settings → Claude Context → **Pair with
+   Claude**: confirm the QR scans to the consent page, the short-code fallback works, approve
+   on phone, then **Send context** should round-trip (the device now points at MCP `/ingest`
+   with the minted token). The first push doubles as the pairing success check (401 ⇒ finish
+   on phone and retry). Then Stage 4 (firmware cleanup) is independent and can follow.
 
 ### Verify the live system is still healthy
 ```bash
@@ -112,5 +120,15 @@ api -X POST "https://api.cloudflare.com/client/v4/accounts/$ACC/workers/observab
 - `~/.cf-debug-token` is a **persistent** read-only Cloudflare token (no TTL) kept for
   ongoing log/KV inspection — see the project memory. Revoke it manually if ever needed.
 - Device still writes to the **relay** (`/c`, slot `me`) — unchanged until Stage 4 repoints it.
+- **Pairing deployed** (version `a65cdc1e`, 2026-06-08) — Phase 1 endpoints are live and
+  verified non-destructively against production (`/pair/start` mints, unapproved token →
+  401 so `ctx:me` is untouched, `/pair?c=` renders, `pair:<nonce>` landed in OAUTH_KV). The
+  IdP→approve→push leg still needs a browser; firmware Phase 2 can now pair against it.
+- **Two known, bounded pairing-security gaps** (documented at the top of `src/pairing.ts`):
+  rate-limiting `/pair/start` + `/pair` is left to the Cloudflare edge (not in code); the
+  nonce rides in the verification URL (required for the QR) so platform logs may capture it —
+  mitigated by short TTL + single-use + owner-IdP-gated approval. Revisit under the TODO
+  "security check".
 - Open TODO in firmware [`TODO.md`](../../TODO.md): include the currently-open page in sent
-  context (off-by-one), and give the MCP instructions latitude beyond the strict tool set.
+  context (off-by-one), give the MCP instructions latitude beyond the strict tool set, and a
+  general security check.

@@ -5,13 +5,15 @@
 #include <I18n.h>
 
 #include "MappedInputManager.h"
+#include "activities/settings/ClaudePairingActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 namespace {
-constexpr int MENU_ITEMS = 2;
-const StrId menuNames[MENU_ITEMS] = {StrId::STR_CLAUDE_RELAY_URL, StrId::STR_CLAUDE_WRITE_TOKEN};
+constexpr int MENU_ITEMS = 3;
+const StrId menuNames[MENU_ITEMS] = {StrId::STR_CLAUDE_RELAY_URL, StrId::STR_CLAUDE_WRITE_TOKEN,
+                                     StrId::STR_CLAUDE_PAIR};
 }  // namespace
 
 void ClaudeContextSettingsActivity::onEnter() {
@@ -71,6 +73,11 @@ void ClaudeContextSettingsActivity::handleSelection() {
             CLAUDE_CONTEXT_STORE.saveToFile();
           }
         });
+  } else if (selectedIndex == 2) {
+    // No-type pairing — saves the relay URL + write token itself, then silent-reboots on exit
+    // (a WiFi session), so the result handler is a no-op.
+    startActivityForResult(std::make_unique<ClaudePairingActivity>(renderer, mappedInput),
+                           [](const ActivityResult&) {});
   }
 }
 
@@ -89,12 +96,15 @@ void ClaudeContextSettingsActivity::render(RenderLock&&) {
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(MENU_ITEMS),
       static_cast<int>(selectedIndex), [](int index) { return std::string(I18N.get(menuNames[index])); }, nullptr,
       nullptr,
-      [](int index) {
+      [](int index) -> std::string {
         if (index == 0) {
           const auto url = CLAUDE_CONTEXT_STORE.getRelayUrl();
           return url.empty() ? std::string(tr(STR_NOT_SET)) : url;
         }
-        return CLAUDE_CONTEXT_STORE.getWriteToken().empty() ? std::string(tr(STR_NOT_SET)) : std::string("******");
+        if (index == 1) {
+          return CLAUDE_CONTEXT_STORE.getWriteToken().empty() ? std::string(tr(STR_NOT_SET)) : std::string("******");
+        }
+        return "";  // Pair is an action, not a stored value
       },
       true);
 

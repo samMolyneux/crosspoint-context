@@ -3,3 +3,5 @@
 - skill refinement?
 - include past reading some how - maybe a seperate skill
 - include the currently-open page in the sent context (off-by-one: on page 33 the context header/truncation reported page 32 — the current page should be included, check 0- vs 1-based and inclusive bound in the extraction loop)
+- update MCP instructions so that it doesn't use strict set of tools (give llm ability to grep and search or investigate alternatives)
+- security check
