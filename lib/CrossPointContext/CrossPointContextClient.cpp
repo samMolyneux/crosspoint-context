@@ -1,4 +1,4 @@
-#include "ClaudeContextClient.h"
+#include "CrossPointContextClient.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -11,9 +11,9 @@
 #include <cctype>
 #include <string>
 
-#include "ClaudeContextStore.h"
+#include "CrossPointContextStore.h"
 
-int ClaudeContextClient::lastHttpCode = 0;
+int CrossPointContextClient::lastHttpCode = 0;
 
 namespace {
 // Small TLS buffers to fit in the ESP32-C3's limited heap (see KOReaderSyncClient for the
@@ -49,10 +49,10 @@ std::string urlEncode(const std::string& s) {
 }
 }  // namespace
 
-ClaudeContextClient::Error ClaudeContextClient::postFile(const char* path) {
+CrossPointContextClient::Error CrossPointContextClient::postFile(const char* path) {
   lastHttpCode = 0;
 
-  ClaudeContextStore& store = CLAUDE_CONTEXT_STORE;
+  CrossPointContextStore& store = CROSSPOINT_CONTEXT_STORE;
   if (!store.isConfigured()) {
     return NOT_CONFIGURED;
   }
@@ -174,8 +174,8 @@ ClaudeContextClient::Error ClaudeContextClient::postFile(const char* path) {
   return SERVER_ERROR;
 }
 
-ClaudeContextClient::Error ClaudeContextClient::pairStart(const std::string& origin, const std::string& deviceLabel,
-                                                          PairResult& out) {
+CrossPointContextClient::Error CrossPointContextClient::pairStart(const std::string& origin,
+                                                                  const std::string& deviceLabel, PairResult& out) {
   lastHttpCode = 0;
   if (origin.empty()) {
     return NOT_CONFIGURED;
@@ -294,7 +294,7 @@ ClaudeContextClient::Error ClaudeContextClient::pairStart(const std::string& ori
   return OK;
 }
 
-const char* ClaudeContextClient::errorString(Error error) {
+const char* CrossPointContextClient::errorString(Error error) {
   switch (error) {
     case OK:
       return "Success";

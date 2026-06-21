@@ -1,4 +1,4 @@
-#include "ClaudeContextStore.h"
+#include "CrossPointContextStore.h"
 
 #include <ArduinoJson.h>
 #include <HalStorage.h>
@@ -6,13 +6,13 @@
 #include <ObfuscationUtils.h>
 
 // Initialize the static instance
-ClaudeContextStore ClaudeContextStore::instance;
+CrossPointContextStore CrossPointContextStore::instance;
 
 namespace {
-constexpr char CLAUDE_CONTEXT_FILE_JSON[] = "/.crosspoint/claude_context.json";
+constexpr char CROSSPOINT_CONTEXT_FILE_JSON[] = "/.crosspoint/context.json";
 }  // namespace
 
-bool ClaudeContextStore::saveToFile() const {
+bool CrossPointContextStore::saveToFile() const {
   Storage.mkdir("/.crosspoint");
 
   JsonDocument doc;
@@ -21,14 +21,14 @@ bool ClaudeContextStore::saveToFile() const {
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(CLAUDE_CONTEXT_FILE_JSON, json);
+  return Storage.writeFile(CROSSPOINT_CONTEXT_FILE_JSON, json);
 }
 
-bool ClaudeContextStore::loadFromFile() {
+bool CrossPointContextStore::loadFromFile() {
   bool loaded = false;
 
-  if (Storage.exists(CLAUDE_CONTEXT_FILE_JSON)) {
-    const String json = Storage.readFile(CLAUDE_CONTEXT_FILE_JSON);
+  if (Storage.exists(CROSSPOINT_CONTEXT_FILE_JSON)) {
+    const String json = Storage.readFile(CROSSPOINT_CONTEXT_FILE_JSON);
     if (!json.isEmpty()) {
       JsonDocument doc;
       const auto error = deserializeJson(doc, json.c_str());
@@ -45,20 +45,20 @@ bool ClaudeContextStore::loadFromFile() {
       }
     }
   } else {
-    LOG_DBG("CTX", "No Claude context config found");
+    LOG_DBG("CTX", "No CrossPoint Context config found");
   }
 
   // Fall back to build-time defaults for anything not set on-device (testing convenience).
   applyCompileTimeDefaults();
 
-  LOG_DBG("CTX", "Loaded Claude context config (configured: %d)", isConfigured());
+  LOG_DBG("CTX", "Loaded CrossPoint Context config (configured: %d)", isConfigured());
   return loaded;
 }
 
-void ClaudeContextStore::applyCompileTimeDefaults() {
-#ifdef CLAUDE_DEFAULT_RELAY_URL
+void CrossPointContextStore::applyCompileTimeDefaults() {
+#ifdef CROSSPOINT_DEFAULT_RELAY_URL
   if (relayUrl.empty()) {
-    relayUrl = CLAUDE_DEFAULT_RELAY_URL;
+    relayUrl = CROSSPOINT_DEFAULT_RELAY_URL;
     LOG_DBG("CTX", "Using compile-time default server origin");
   }
 #endif
@@ -66,16 +66,16 @@ void ClaudeContextStore::applyCompileTimeDefaults() {
   // token is now obtained per-device via pairing (or manual entry). See device-pairing-plan.md.
 }
 
-void ClaudeContextStore::setConfig(const std::string& url, const std::string& token) {
+void CrossPointContextStore::setConfig(const std::string& url, const std::string& token) {
   relayUrl = url;
   writeToken = token;
 }
 
-void ClaudeContextStore::setRelayUrl(const std::string& url) { relayUrl = url; }
+void CrossPointContextStore::setRelayUrl(const std::string& url) { relayUrl = url; }
 
-void ClaudeContextStore::setWriteToken(const std::string& token) { writeToken = token; }
+void CrossPointContextStore::setWriteToken(const std::string& token) { writeToken = token; }
 
-std::string ClaudeContextStore::getNormalisedUrl() const {
+std::string CrossPointContextStore::getNormalisedUrl() const {
   if (relayUrl.empty()) {
     return "";
   }
@@ -95,11 +95,11 @@ std::string ClaudeContextStore::getNormalisedUrl() const {
   return url;
 }
 
-bool ClaudeContextStore::isConfigured() const { return !relayUrl.empty() && !writeToken.empty(); }
+bool CrossPointContextStore::isConfigured() const { return !relayUrl.empty() && !writeToken.empty(); }
 
-void ClaudeContextStore::clear() {
+void CrossPointContextStore::clear() {
   relayUrl.clear();
   writeToken.clear();
   saveToFile();
-  LOG_DBG("CTX", "Cleared Claude context config");
+  LOG_DBG("CTX", "Cleared CrossPoint Context config");
 }

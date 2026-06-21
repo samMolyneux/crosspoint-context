@@ -1,30 +1,30 @@
-#include "ClaudeContextSettingsActivity.h"
+#include "CrossPointContextSettingsActivity.h"
 
-#include <ClaudeContextStore.h>
+#include <CrossPointContextStore.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 
 #include "MappedInputManager.h"
-#include "activities/settings/ClaudePairingActivity.h"
+#include "activities/settings/CrossPointPairingActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 namespace {
 constexpr int MENU_ITEMS = 3;
-const StrId menuNames[MENU_ITEMS] = {StrId::STR_CLAUDE_RELAY_URL, StrId::STR_CLAUDE_WRITE_TOKEN,
-                                     StrId::STR_CLAUDE_PAIR};
+const StrId menuNames[MENU_ITEMS] = {StrId::STR_CPCONTEXT_RELAY_URL, StrId::STR_CPCONTEXT_WRITE_TOKEN,
+                                     StrId::STR_CPCONTEXT_PAIR};
 }  // namespace
 
-void ClaudeContextSettingsActivity::onEnter() {
+void CrossPointContextSettingsActivity::onEnter() {
   Activity::onEnter();
   selectedIndex = 0;
   requestUpdate();
 }
 
-void ClaudeContextSettingsActivity::onExit() { Activity::onExit(); }
+void CrossPointContextSettingsActivity::onExit() { Activity::onExit(); }
 
-void ClaudeContextSettingsActivity::loop() {
+void CrossPointContextSettingsActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     finish();
     return;
@@ -46,49 +46,49 @@ void ClaudeContextSettingsActivity::loop() {
   });
 }
 
-void ClaudeContextSettingsActivity::handleSelection() {
+void CrossPointContextSettingsActivity::handleSelection() {
   if (selectedIndex == 0) {
     // Relay URL - prefill with https:// if empty to save typing.
-    const std::string current = CLAUDE_CONTEXT_STORE.getRelayUrl();
+    const std::string current = CROSSPOINT_CONTEXT_STORE.getRelayUrl();
     const std::string prefill = current.empty() ? "https://" : current;
-    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CLAUDE_RELAY_URL),
+    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CPCONTEXT_RELAY_URL),
                                                                    prefill, 128, InputType::Url),
                            [this](const ActivityResult& result) {
                              if (!result.isCancelled) {
                                const auto& kb = std::get<KeyboardResult>(result.data);
                                const std::string url = (kb.text == "https://" || kb.text == "http://") ? "" : kb.text;
-                               CLAUDE_CONTEXT_STORE.setRelayUrl(url);
-                               CLAUDE_CONTEXT_STORE.saveToFile();
+                               CROSSPOINT_CONTEXT_STORE.setRelayUrl(url);
+                               CROSSPOINT_CONTEXT_STORE.saveToFile();
                              }
                            });
   } else if (selectedIndex == 1) {
     // Write token (masked entry).
     startActivityForResult(
-        std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CLAUDE_WRITE_TOKEN),
-                                                CLAUDE_CONTEXT_STORE.getWriteToken(), 128, InputType::Password),
+        std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CPCONTEXT_WRITE_TOKEN),
+                                                CROSSPOINT_CONTEXT_STORE.getWriteToken(), 128, InputType::Password),
         [this](const ActivityResult& result) {
           if (!result.isCancelled) {
             const auto& kb = std::get<KeyboardResult>(result.data);
-            CLAUDE_CONTEXT_STORE.setWriteToken(kb.text);
-            CLAUDE_CONTEXT_STORE.saveToFile();
+            CROSSPOINT_CONTEXT_STORE.setWriteToken(kb.text);
+            CROSSPOINT_CONTEXT_STORE.saveToFile();
           }
         });
   } else if (selectedIndex == 2) {
     // No-type pairing — saves the relay URL + write token itself, then silent-reboots on exit
     // (a WiFi session), so the result handler is a no-op.
-    startActivityForResult(std::make_unique<ClaudePairingActivity>(renderer, mappedInput),
+    startActivityForResult(std::make_unique<CrossPointPairingActivity>(renderer, mappedInput),
                            [](const ActivityResult&) {});
   }
 }
 
-void ClaudeContextSettingsActivity::render(RenderLock&&) {
+void CrossPointContextSettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_CLAUDE_CONTEXT));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_CPCONTEXT_NAME));
 
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
@@ -98,11 +98,12 @@ void ClaudeContextSettingsActivity::render(RenderLock&&) {
       nullptr,
       [](int index) -> std::string {
         if (index == 0) {
-          const auto url = CLAUDE_CONTEXT_STORE.getRelayUrl();
+          const auto url = CROSSPOINT_CONTEXT_STORE.getRelayUrl();
           return url.empty() ? std::string(tr(STR_NOT_SET)) : url;
         }
         if (index == 1) {
-          return CLAUDE_CONTEXT_STORE.getWriteToken().empty() ? std::string(tr(STR_NOT_SET)) : std::string("******");
+          return CROSSPOINT_CONTEXT_STORE.getWriteToken().empty() ? std::string(tr(STR_NOT_SET))
+                                                                  : std::string("******");
         }
         return "";  // Pair is an action, not a stored value
       },

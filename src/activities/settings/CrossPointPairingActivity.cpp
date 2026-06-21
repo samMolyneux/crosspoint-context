@@ -1,7 +1,7 @@
-#include "ClaudePairingActivity.h"
+#include "CrossPointPairingActivity.h"
 
-#include <ClaudeContextClient.h>
-#include <ClaudeContextStore.h>
+#include <CrossPointContextClient.h>
+#include <CrossPointContextStore.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -69,13 +69,13 @@ std::vector<std::string> wrapToWidth(const GfxRenderer& renderer, const int font
 }
 }  // namespace
 
-void ClaudePairingActivity::onEnter() {
+void CrossPointPairingActivity::onEnter() {
   Activity::onEnter();
 
   // Pair against the device's configured server origin (the baked-in default
-  // -DCLAUDE_DEFAULT_RELAY_URL on a fresh device, or a self-hoster's override). Without one
+  // -DCROSSPOINT_DEFAULT_RELAY_URL on a fresh device, or a self-hoster's override). Without one
   // there is nothing to pair against.
-  if (CLAUDE_CONTEXT_STORE.getNormalisedUrl().empty()) {
+  if (CROSSPOINT_CONTEXT_STORE.getNormalisedUrl().empty()) {
     state = UNAVAILABLE;
     requestUpdate();
     return;
@@ -88,7 +88,7 @@ void ClaudePairingActivity::onEnter() {
   {
     RenderLock lock(*this);
     state = PAIRING;
-    statusMessage = tr(STR_CLAUDE_PAIRING);
+    statusMessage = tr(STR_CPCONTEXT_PAIRING);
   }
   requestUpdateAndWait();  // render "Pairing…" before the blocking network work
 
@@ -100,7 +100,7 @@ void ClaudePairingActivity::onEnter() {
                          [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
 }
 
-void ClaudePairingActivity::onWifiSelectionComplete(const bool success) {
+void CrossPointPairingActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
     {
       RenderLock lock(*this);
@@ -113,37 +113,37 @@ void ClaudePairingActivity::onWifiSelectionComplete(const bool success) {
   performPairing();
 }
 
-void ClaudePairingActivity::performPairing() {
+void CrossPointPairingActivity::performPairing() {
   {
     RenderLock lock(*this);
     state = PAIRING;
-    statusMessage = tr(STR_CLAUDE_PAIRING);
+    statusMessage = tr(STR_CPCONTEXT_PAIRING);
   }
   requestUpdateAndWait();
 
-  const std::string origin = CLAUDE_CONTEXT_STORE.getNormalisedUrl();
-  const ClaudeContextClient::Error err = ClaudeContextClient::pairStart(origin, deviceLabelText, pairResult);
+  const std::string origin = CROSSPOINT_CONTEXT_STORE.getNormalisedUrl();
+  const CrossPointContextClient::Error err = CrossPointContextClient::pairStart(origin, deviceLabelText, pairResult);
 
   // Drop the radio while the user finishes on their phone; full teardown is at silent reboot.
   esp_wifi_stop();
 
   {
     RenderLock lock(*this);
-    if (err == ClaudeContextClient::OK) {
+    if (err == CrossPointContextClient::OK) {
       // Save the minted token against the same origin. The push path (postFile) appends
       // /ingest; the token resolves there via the server's hashed cred lookup.
-      CLAUDE_CONTEXT_STORE.setConfig(origin, pairResult.writeToken);
-      CLAUDE_CONTEXT_STORE.saveToFile();
+      CROSSPOINT_CONTEXT_STORE.setConfig(origin, pairResult.writeToken);
+      CROSSPOINT_CONTEXT_STORE.saveToFile();
       state = SHOW_QR;
     } else {
       state = FAILED;
-      statusMessage = ClaudeContextClient::errorString(err);
+      statusMessage = CrossPointContextClient::errorString(err);
     }
   }
   requestUpdate(true);
 }
 
-void ClaudePairingActivity::loop() {
+void CrossPointPairingActivity::loop() {
   if (state == UNAVAILABLE || state == SHOW_QR || state == FAILED) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
@@ -152,7 +152,7 @@ void ClaudePairingActivity::loop() {
   }
 }
 
-void ClaudePairingActivity::onExit() {
+void CrossPointPairingActivity::onExit() {
   Activity::onExit();
 
   // A WiFi session fragments the heap; reboot to clear it (matches the other WiFi activities).
@@ -163,14 +163,14 @@ void ClaudePairingActivity::onExit() {
   }
 }
 
-void ClaudePairingActivity::render(RenderLock&&) {
+void CrossPointPairingActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto metrics = UITheme::getInstance().getMetrics();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
 
   GUI.drawHeader(renderer, Rect{screen.x, screen.y + metrics.topPadding, screen.width, metrics.headerHeight},
-                 tr(STR_CLAUDE_PAIR));
+                 tr(STR_CPCONTEXT_PAIR));
 
   if (state == PAIRING) {
     const int top = screen.y + screen.height / 2 - 20;
@@ -184,7 +184,7 @@ void ClaudePairingActivity::render(RenderLock&&) {
     int y = screen.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
 
     // Device label up top, so the user can confirm it matches the phone's consent screen.
-    const std::string device = std::string(tr(STR_CLAUDE_PAIR_DEVICE)) + " " + deviceLabelText;
+    const std::string device = std::string(tr(STR_CPCONTEXT_PAIR_DEVICE)) + " " + deviceLabelText;
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, device.c_str(), true, EpdFontFamily::BOLD);
     y += lh + metrics.verticalSpacing;
 
@@ -193,12 +193,13 @@ void ClaudePairingActivity::render(RenderLock&&) {
     QrUtils::drawQrCode(renderer, qrBounds, pairResult.verificationUriComplete);
     y = qrBounds.y + qrBounds.height + metrics.verticalSpacing;
 
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, tr(STR_CLAUDE_PAIR_SCAN), true, EpdFontFamily::BOLD);
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, tr(STR_CPCONTEXT_PAIR_SCAN), true,
+                              EpdFontFamily::BOLD);
     y += lh + 6;
 
     // No-scan fallback: a short label, then the full URL char-wrapped at a small font so it
     // never clips (wrappedText() can't be used here — it ellipsizes spaceless tokens).
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, tr(STR_CLAUDE_PAIR_OR_VISIT));
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, tr(STR_CPCONTEXT_PAIR_OR_VISIT));
     y += lh + 2;
     const int urlWidth = screen.width - 2 * metrics.contentSidePadding;
     const int urlLh = renderer.getLineHeight(SMALL_FONT_ID);
@@ -208,16 +209,16 @@ void ClaudePairingActivity::render(RenderLock&&) {
     }
     y += 6;
 
-    const std::string code = std::string(tr(STR_CLAUDE_PAIR_AND_ENTER)) + " " + pairResult.nonce;
+    const std::string code = std::string(tr(STR_CPCONTEXT_PAIR_AND_ENTER)) + " " + pairResult.nonce;
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, y, code.c_str(), true, EpdFontFamily::BOLD);
   } else if (state == UNAVAILABLE) {
     const int top = screen.y + screen.height / 2 - 20;
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CLAUDE_PAIR_UNAVAILABLE), true,
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CPCONTEXT_PAIR_UNAVAILABLE), true,
                               EpdFontFamily::BOLD);
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_CLAUDE_SETUP_HINT));
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_CPCONTEXT_SETUP_HINT));
   } else if (state == FAILED) {
     const int top = screen.y + screen.height / 2 - 20;
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CLAUDE_PAIR_FAILED), true,
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CPCONTEXT_PAIR_FAILED), true,
                               EpdFontFamily::BOLD);
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, statusMessage.c_str());
   }

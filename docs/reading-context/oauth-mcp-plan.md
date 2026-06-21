@@ -12,10 +12,10 @@ document and made concrete. It supersedes that section.
 >   `GET /c` (read token), KV key `ctx:<slot>`, **raw** token comparison against
 >   `TOKENS_JSON = [{slot, writeToken, readToken}]` (no hashing — see `CONTRACT.md` for the
 >   rationale). Contract in [`CONTRACT.md`](CONTRACT.md).
-> - **Firmware**: `lib/ClaudeContext/` (`ClaudeContextStore`, `ClaudeContextClient`),
->   `ClaudeContextSendActivity`, `ClaudeContextSettingsActivity`. Pushes the truncated
+> - **Firmware**: `lib/CrossPointContext/` (`CrossPointContextStore`, `CrossPointContextClient`),
+>   `CrossPointContextSendActivity`, `CrossPointContextSettingsActivity`. Pushes the truncated
 >   book-so-far. Holds relay URL + obfuscated write token; optional compile-time defaults
->   via `-DCLAUDE_DEFAULT_RELAY_URL` / `-DCLAUDE_DEFAULT_WRITE_TOKEN`.
+>   via `-DCROSSPOINT_DEFAULT_RELAY_URL` / `-DCROSSPOINT_DEFAULT_WRITE_TOKEN`.
 > - **Skill**: fetches `GET /c` with a read token baked into the skill file, then answers
 >   only from the fetched text, with hard-wall (truncation) + soft-wall (instruction)
 >   spoiler protection.
@@ -209,7 +209,7 @@ coexist, mapping onto the repo split:
 - **Self-hosted (open relay): static, raw.** `TOKENS_JSON = [{slot, writeToken, readToken}]`
   baked into the Worker config; a presented token is compared directly, no hashing — the token
   already lives in plaintext in the firmware and skill, so a stored hash would protect only one
-  of several copies. Provisioned by typing the token into `ClaudeContextSettingsActivity`;
+  of several copies. Provisioned by typing the token into `CrossPointContextSettingsActivity`;
   revoked by editing the config and redeploying. Deliberately minimal — no minting endpoint, no
   runtime management UI.
 - **Hosted (closed MCP): dynamic, hashed.** The server mints the token `T` during pairing (see
@@ -250,24 +250,24 @@ the migration.
 ## Firmware impact (small — mostly the cleanup TODO)
 
 The device keeps pushing a truncated markdown body over an authenticated POST, so
-`lib/ClaudeContext/` and the two activities stay structurally as-is. Concrete changes:
+`lib/CrossPointContext/` and the two activities stay structurally as-is. Concrete changes:
 
 1. **Remove the compile-time default _token_** (TODO item 2 — "Remove/clean up default
-   token stuff"). Drop `-DCLAUDE_DEFAULT_WRITE_TOKEN` and the token branch of
-   `ClaudeContextStore::applyCompileTimeDefaults()`
-   ([`ClaudeContextStore.h:20-22`](../../lib/ClaudeContext/ClaudeContextStore.h)) — a
-   baked-in default token is a credential-handling smell. **Keep `-DCLAUDE_DEFAULT_RELAY_URL`**:
+   token stuff"). Drop `-DCROSSPOINT_DEFAULT_WRITE_TOKEN` and the token branch of
+   `CrossPointContextStore::applyCompileTimeDefaults()`
+   ([`CrossPointContextStore.h:20-22`](../../lib/CrossPointContext/CrossPointContextStore.h)) — a
+   baked-in default token is a credential-handling smell. **Keep `-DCROSSPOINT_DEFAULT_RELAY_URL`**:
    the base URL is public (not a secret), and the new pairing flow relies on it being baked in
    so the user never types it (see [`device-pairing-plan.md`](device-pairing-plan.md)). Verify
    nothing in `platformio.ini` / `platformio.local.ini` still sets the token default after removal.
 2. **Point the baked-in URL at the new server.** The store holds the **origin only** and the
    client appends `POST /ingest`, so `getNormalisedUrl()`
-   ([`ClaudeContextStore.h:42-43`](../../lib/ClaudeContext/ClaudeContextStore.h)) returns the
-   scheme-normalised origin without a path, and `ClaudeContextClient::postFile` appends `/ingest`
+   ([`CrossPointContextStore.h:42-43`](../../lib/CrossPointContext/CrossPointContextStore.h)) returns the
+   scheme-normalised origin without a path, and `CrossPointContextClient::postFile` appends `/ingest`
    before calling `esp_http_client_set_url`. The on-device URL field stays as an optional
    self-hoster override — now a short origin, not a full endpoint.
 3. **Write-token provisioning.** The device supports both paths from the
-   [Write-token model](#write-token-model): manual entry via `ClaudeContextSettingsActivity`
+   [Write-token model](#write-token-model): manual entry via `CrossPointContextSettingsActivity`
    (for a self-hosted relay) and the typing-free pairing flow that receives a server-minted
    token (for the hosted product, see [`device-pairing-plan.md`](device-pairing-plan.md)).
    Manual entry already exists; pairing is the one genuinely new firmware activity.
@@ -335,5 +335,5 @@ From the repo-root `TODO.md`:
 | TODO item | Covered by |
 |-----------|-----------|
 | OAuth + MCP | This whole document (Phases 1–3, 5) |
-| Remove/clean up default token stuff | Phase 4, item 1 (drop `-DCLAUDE_DEFAULT_*`) |
+| Remove/clean up default token stuff | Phase 4, item 1 (drop `-DCROSSPOINT_DEFAULT_*`) |
 | skill refinement? | Phase 3 (guidance → server instructions; skill retained as the open-relay example) |

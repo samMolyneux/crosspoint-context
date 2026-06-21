@@ -4,13 +4,13 @@
 #include "util/ButtonNavigator.h"
 
 /**
- * Submenu for configuring the Claude reading-context relay.
+ * Submenu for configuring the CrossPoint Context relay.
  * Lets the user set the relay URL and the write-only bearer token.
  */
-class ClaudeContextSettingsActivity final : public Activity {
+class CrossPointContextSettingsActivity final : public Activity {
  public:
-  explicit ClaudeContextSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("ClaudeContextSettings", renderer, mappedInput) {}
+  explicit CrossPointContextSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("CrossPointContextSettings", renderer, mappedInput) {}
 
   void onEnter() override;
   void onExit() override;

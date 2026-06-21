@@ -16,7 +16,7 @@ enum class SettingAction {
   RemapFrontButtons,
   CustomiseStatusBar,
   KOReaderSync,
-  ClaudeContext,
+  CrossPointContext,
   OPDSBrowser,
   Network,
   ClearCache,

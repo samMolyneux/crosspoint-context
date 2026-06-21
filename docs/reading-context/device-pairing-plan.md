@@ -5,7 +5,7 @@ long URL or token** on the button-driven e-ink keyboard. The device shows a QR (
 fallback code); the user finishes pairing **on their phone**. **No polling** on the device.
 
 > **This is additive.** The existing **manual relay-URL + write-token entry**
-> (`ClaudeContextSettingsActivity`) and the existing relay write/read endpoints remain
+> (`CrossPointContextSettingsActivity`) and the existing relay write/read endpoints remain
 > fully available — pairing is an *alternative* provisioning path, not a replacement. See
 > [Coexistence](#coexistence-with-the-existing-approach).
 
@@ -67,8 +67,8 @@ override, now holding just the origin.
     │     expires_in }              │                                 │
     │◄──────────────────────────────│                                 │
     │                               │                                 │
-    │ 2. save T (ClaudeContext-     │                                 │
-    │    Store, obfuscated on SD)    │                                 │
+    │ 2. save T (CrossPoint-        │                                 │
+    │    ContextStore, obfusc. SD)   │                                 │
     │ 3. show QR(_uri_complete)     │                                 │
     │    + nonce + verification_uri │                                 │
     │    "scan, or go to <url> and  │                                 │
@@ -99,7 +99,7 @@ override, now holding just the origin.
    status: pending, expiresAt }` (e.g. 15-min TTL). Returns `{ T, nonce, verification_uri,
    verification_uri_complete, expires_in }`. `verification_uri_complete` = `…/pair?c=<nonce>`
    (what the QR encodes). **`T` is in this response body only — never in the QR.**
-3. **Device** saves `T` immediately via `ClaudeContextStore`, then renders the QR with the
+3. **Device** saves `T` immediately via `CrossPointContextStore`, then renders the QR with the
    existing `QrUtils::drawQrCode(renderer, bounds, verification_uri_complete)` plus the
    `nonce` and `verification_uri` as text.
 4. **Device is done.** No polling. The screen can be dismissed with a button.
@@ -115,7 +115,7 @@ override, now holding just the origin.
 ### Implicit confirmation (no polling needed)
 
 The device never learns the binding result directly. It doesn't need to: the **first real
-"Send context to Claude" doubles as the check** — it succeeds once bound, or returns `401`,
+"Sync to CrossPoint Context" doubles as the check** — it succeeds once bound, or returns `401`,
 on which the device shows *"Finish pairing on your phone, then try again."* If the nonce TTL
 lapsed before approval, the saved `T` is dead and the same 401 path prompts a re-pair.
 
@@ -161,14 +161,14 @@ Mostly wiring around code that already exists.
 
 **Reused:**
 - QR encode/render — `QrUtils::drawQrCode` ([`src/util/QrUtils.h:12`](../../src/util/QrUtils.h)).
-- HTTP — the `esp_http_client` pattern in `ClaudeContextClient` (one small HTTPS POST).
-- Token-at-rest — `ClaudeContextStore` (obfuscated-on-SD), used to save the returned `T`
-  and URL ([`lib/ClaudeContext/ClaudeContextStore.h`](../../lib/ClaudeContext/ClaudeContextStore.h)).
+- HTTP — the `esp_http_client` pattern in `CrossPointContextClient` (one small HTTPS POST).
+- Token-at-rest — `CrossPointContextStore` (obfuscated-on-SD), used to save the returned `T`
+  and URL ([`lib/CrossPointContext/CrossPointContextStore.h`](../../lib/CrossPointContext/CrossPointContextStore.h)).
 
 **New:**
-- A new dedicated activity, **`ClaudePairingActivity`**: do `POST /pair/start`, save `T`,
+- A new dedicated activity, **`CrossPointPairingActivity`**: do `POST /pair/start`, save `T`,
   render QR + nonce + URL, exit on button. **No poll loop, no timers.**
-- A **"Pair with Claude" menu item** in `ClaudeContextSettingsActivity` that launches it via
+- A **"Pair with CrossPoint Context" menu item** in `CrossPointContextSettingsActivity` that launches it via
   the same `startActivityForResult` pattern the settings menu already uses for
   `KeyboardEntryActivity` — keeping the full-screen QR/network flow out of the list-menu
   activity.
@@ -185,7 +185,7 @@ truncation. Re-run the firmware checks in [`testing.md`](testing.md) §2a after 
 
 Both provisioning paths and both wire paths stay live in this phase:
 
-- **Manual entry kept.** `ClaudeContextSettingsActivity` continues to accept a typed relay
+- **Manual entry kept.** `CrossPointContextSettingsActivity` continues to accept a typed relay
   URL + write token. Pairing is an additional menu option, not a replacement.
 - **Both write tokens accepted.** The ingest handler resolves a presented bearer token to a
   slot by checking **either** the legacy static `TOKENS_JSON` write tokens (raw match) **or**
@@ -249,5 +249,5 @@ the OAuth/slot work — not before.
 | TODO item | This plan |
 |-----------|-----------|
 | OAuth + MCP | Provides the no-type **write-side** provisioning; read-side stays in [`oauth-mcp-plan.md`](oauth-mcp-plan.md) |
-| Remove/clean up default token stuff | Replaces the need for `-DCLAUDE_DEFAULT_WRITE_TOKEN`; keep only the public default **URL** |
+| Remove/clean up default token stuff | Replaces the need for `-DCROSSPOINT_DEFAULT_WRITE_TOKEN`; keep only the public default **URL** |
 | skill refinement? | Unaffected here (read side) |

@@ -1,7 +1,7 @@
-#include "ClaudeContextSendActivity.h"
+#include "CrossPointContextSendActivity.h"
 
-#include <ClaudeContextClient.h>
-#include <ClaudeContextStore.h>
+#include <CrossPointContextClient.h>
+#include <CrossPointContextStore.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -19,7 +19,7 @@
 #include "SilentRestart.h"
 #include "activities/ActivityManager.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "activities/settings/ClaudePairingActivity.h"
+#include "activities/settings/CrossPointPairingActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -29,7 +29,7 @@ namespace {
 constexpr char TEMP_PATH[] = "/.crosspoint/claude_ctx.tmp";
 }  // namespace
 
-bool ClaudeContextSendActivity::extractToTempFile() {
+bool CrossPointContextSendActivity::extractToTempFile() {
   auto epub = std::make_shared<Epub>(epubPath, "/.crosspoint");
   epub->setupCacheDir();
   // Metadata only: the sections up to the reading point were already rendered (and cached)
@@ -62,8 +62,11 @@ bool ClaudeContextSendActivity::extractToTempFile() {
   }
 
   // Header: title/author + truncation marker + spoiler instruction (see CONTRACT.md).
+  // Section/page are printed 1-based to match what the reader shows the user (the UI
+  // renders section->currentPage + 1); the loop indices below stay 0-based. The current
+  // page is inclusive — the extraction loop reads up to and including upToPage.
   std::string header = "# " + epub->getTitle() + " — " + epub->getAuthor() + "\n";
-  header += "# Read up to: section " + std::to_string(upToSpine) + ", page " + std::to_string(upToPage) +
+  header += "# Read up to: section " + std::to_string(upToSpine + 1) + ", page " + std::to_string(upToPage + 1) +
             ". Do not reveal anything beyond this point.\n\n";
   out.write(header.data(), header.size());
 
@@ -115,25 +118,25 @@ bool ClaudeContextSendActivity::extractToTempFile() {
   return true;
 }
 
-void ClaudeContextSendActivity::onEnter() {
+void CrossPointContextSendActivity::onEnter() {
   Activity::onEnter();
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
 
-  if (!CLAUDE_CONTEXT_STORE.isConfigured()) {
+  if (!CROSSPOINT_CONTEXT_STORE.isConfigured()) {
     state = NOT_CONFIGURED;
     requestUpdate();
     return;
   }
 
   state = EXTRACTING;
-  statusMessage = tr(STR_CLAUDE_PREPARING);
+  statusMessage = tr(STR_CPCONTEXT_PREPARING);
   requestUpdateAndWait();  // render "Preparing…" before the blocking extraction
 
   if (!extractToTempFile()) {
     {
       RenderLock lock(*this);
       state = FAILED;
-      statusMessage = tr(STR_CLAUDE_EXTRACT_FAILED);
+      statusMessage = tr(STR_CPCONTEXT_EXTRACT_FAILED);
     }
     requestUpdate(true);
     return;
@@ -152,7 +155,7 @@ void ClaudeContextSendActivity::onEnter() {
                          [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
 }
 
-void ClaudeContextSendActivity::onWifiSelectionComplete(const bool success) {
+void CrossPointContextSendActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
     LOG_DBG("CTX", "WiFi connection failed/cancelled, exiting");
     returnToReader();
@@ -161,43 +164,44 @@ void ClaudeContextSendActivity::onWifiSelectionComplete(const bool success) {
   performUpload();
 }
 
-void ClaudeContextSendActivity::performUpload() {
+void CrossPointContextSendActivity::performUpload() {
   {
     RenderLock lock(*this);
     state = SENDING;
-    statusMessage = tr(STR_CLAUDE_SENDING);
+    statusMessage = tr(STR_CPCONTEXT_SENDING);
   }
   requestUpdateAndWait();
 
-  const ClaudeContextClient::Error result = ClaudeContextClient::postFile(TEMP_PATH);
+  const CrossPointContextClient::Error result = CrossPointContextClient::postFile(TEMP_PATH);
 
   // Drop the radio while the user reads the result; full teardown happens at silent reboot.
   esp_wifi_stop();
 
   {
     RenderLock lock(*this);
-    if (result == ClaudeContextClient::OK) {
+    if (result == CrossPointContextClient::OK) {
       state = DONE;
     } else {
       state = FAILED;
-      statusMessage = ClaudeContextClient::errorString(result);
+      statusMessage = CrossPointContextClient::errorString(result);
       // A rejected token usually means pairing lapsed or never completed — offer a shortcut
       // straight to the pairing screen rather than making the user dig through settings.
-      canRepair = (result == ClaudeContextClient::UNAUTHORIZED);
+      canRepair = (result == CrossPointContextClient::UNAUTHORIZED);
     }
   }
   requestUpdate(true);
 }
 
-void ClaudeContextSendActivity::returnToReader() { activityManager.goToReader(epubPath); }
+void CrossPointContextSendActivity::returnToReader() { activityManager.goToReader(epubPath); }
 
-void ClaudeContextSendActivity::startRepair() {
+void CrossPointContextSendActivity::startRepair() {
   // Jump straight to pairing. It runs its own WiFi session and silent-reboots on exit, so we
   // never return here — pass a no-op result handler (same pattern as the settings menu).
-  startActivityForResult(std::make_unique<ClaudePairingActivity>(renderer, mappedInput), [](const ActivityResult&) {});
+  startActivityForResult(std::make_unique<CrossPointPairingActivity>(renderer, mappedInput),
+                         [](const ActivityResult&) {});
 }
 
-void ClaudeContextSendActivity::onExit() {
+void CrossPointContextSendActivity::onExit() {
   Activity::onExit();
 
   Storage.remove(TEMP_PATH);
@@ -209,7 +213,7 @@ void ClaudeContextSendActivity::onExit() {
   }
 }
 
-void ClaudeContextSendActivity::loop() {
+void CrossPointContextSendActivity::loop() {
   if (state == NOT_CONFIGURED || state == DONE || state == FAILED) {
     if (state == FAILED && canRepair && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       startRepair();
@@ -221,14 +225,14 @@ void ClaudeContextSendActivity::loop() {
   }
 }
 
-void ClaudeContextSendActivity::render(RenderLock&&) {
+void CrossPointContextSendActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   auto metrics = UITheme::getInstance().getMetrics();
   Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
 
   GUI.drawHeader(renderer, Rect{screen.x, screen.y + metrics.topPadding, screen.width, metrics.headerHeight},
-                 tr(STR_SEND_CONTEXT));
+                 tr(STR_CPCONTEXT_SYNC));
 
   const int top = screen.y + screen.height / 2 - 40;
 
@@ -239,19 +243,19 @@ void ClaudeContextSendActivity::render(RenderLock&&) {
   }
 
   if (state == DONE) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CLAUDE_SENT), true, EpdFontFamily::BOLD);
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CPCONTEXT_SENT), true, EpdFontFamily::BOLD);
   } else if (state == NOT_CONFIGURED) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CLAUDE_NOT_CONFIGURED), true,
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CPCONTEXT_NOT_CONFIGURED), true,
                               EpdFontFamily::BOLD);
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_CLAUDE_SETUP_HINT), true,
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_CPCONTEXT_SETUP_HINT), true,
                               EpdFontFamily::BOLD);
   } else if (state == FAILED) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CLAUDE_SEND_FAILED), true,
+    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_CPCONTEXT_SEND_FAILED), true,
                               EpdFontFamily::BOLD);
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, statusMessage.c_str());
   }
 
-  const char* confirmLabel = (state == FAILED && canRepair) ? tr(STR_CLAUDE_REPAIR) : "";
+  const char* confirmLabel = (state == FAILED && canRepair) ? tr(STR_CPCONTEXT_REPAIR) : "";
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();

@@ -15,7 +15,7 @@ build
 .history/
 /.venv
 *.local*
-claude_secrets.ini
+crosspoint_context_secrets.ini
 *.cpfont
 lib/EpdFont/scripts/downloaded_fonts/
 lib/EpdFont/scripts/instanced_fonts/

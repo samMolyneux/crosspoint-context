@@ -7,7 +7,7 @@
 #include "activities/Activity.h"
 
 /**
- * Activity that sends the book-so-far to the Claude relay.
+ * Activity that sends the book-so-far to the CrossPoint Context relay.
  *
  * Launched from the reader menu (SEND_CONTEXT). The reader releases its EPUB before
  * replacing itself with this activity, mirroring the KOReader sync flow.
@@ -19,11 +19,11 @@
  *    resident at the same time — the TLS handshake needs the heap the EPUB was using).
  * 3. POST the temp file to the relay and show the result.
  */
-class ClaudeContextSendActivity final : public Activity {
+class CrossPointContextSendActivity final : public Activity {
  public:
-  explicit ClaudeContextSendActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string epubPath,
-                                     int spineIndex, int page)
-      : Activity("ClaudeContextSend", renderer, mappedInput),
+  explicit CrossPointContextSendActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string epubPath,
+                                         int spineIndex, int page)
+      : Activity("CrossPointContextSend", renderer, mappedInput),
         epubPath(std::move(epubPath)),
         spineIndex(spineIndex),
         page(page) {}

@@ -201,14 +201,14 @@ own words: "not cryptographically secure, but prevents casual reading and ties c
 to the specific device"). It already stores a **custom server URL** plus credentials —
 structurally identical to what we need (`relay_url`, `write_token`).
 
-Proposed `ClaudeContextStore` (mirroring the KOReader store):
+Proposed `CrossPointContextStore` (mirroring the KOReader store):
 
 ```cpp
-class ClaudeContextStore {
+class CrossPointContextStore {
   std::string relayUrl;     // e.g. https://reading-relay.<you>.workers.dev/c
   std::string writeToken;   // bearer token; obfuscated at rest like KOReader password
  public:
-  static ClaudeContextStore& getInstance();
+  static CrossPointContextStore& getInstance();
   bool saveToFile() const;
   bool loadFromFile();
   void setConfig(const std::string& url, const std::string& token);
@@ -219,15 +219,15 @@ class ClaudeContextStore {
 ```
 
 **As built:** the fields are entered through an on-device settings activity
-(`ClaudeContextSettingsActivity`, reached via Settings → System → "Claude Context"), using
+(`CrossPointContextSettingsActivity`, reached via Settings → System → "CrossPoint Context"), using
 `KeyboardEntryActivity` with the token masked — matching the codebase's existing
 KOReader/OPDS credential convention rather than the browser web-settings path (which is a
 larger, separate lift, reasonable as a future enhancement). For testing convenience a
-build may also bake in defaults via `-DCLAUDE_DEFAULT_RELAY_URL` /
-`-DCLAUDE_DEFAULT_WRITE_TOKEN`. The literal URL + token live in a single gitignored
-`claude_secrets.ini` (`[claude]` section); `platformio.local.ini` references them via
-`${claude.relay_url}` / `${claude.write_token}` interpolation, so the token exists in one
-place and isn't hand-copied into a build flag. `ClaudeContextStore` fills these only for
+build may also bake in defaults via `-DCROSSPOINT_DEFAULT_RELAY_URL` /
+`-DCROSSPOINT_DEFAULT_WRITE_TOKEN`. The literal URL + token live in a single gitignored
+`crosspoint_context_secrets.ini` (`[crosspoint_context]` section); `platformio.local.ini` references them via
+`${crosspoint_context.relay_url}` / `${crosspoint_context.write_token}` interpolation, so the token exists in one
+place and isn't hand-copied into a build flag. `CrossPointContextStore` fills these only for
 fields not already configured on-device, and no token is hardcoded in committed source.
 
 ### The menu entry
@@ -247,7 +247,7 @@ Reader menu items are declared in
   string id for the label (the project has 22 UI languages; add the string id and at
   least the English string):
   ```cpp
-  items.push_back({MenuAction::SEND_CONTEXT, StrId::STR_SEND_CONTEXT});
+  items.push_back({MenuAction::SEND_CONTEXT, StrId::STR_CPCONTEXT_SYNC});
   ```
 - Handle it where the other actions are dispatched, in
   `EpubReaderActivity.cpp` (the same `switch` that has `case ... ::SCREENSHOT:` and
@@ -256,10 +256,10 @@ Reader menu items are declared in
   a result. Model `SEND_CONTEXT` on it:
   ```cpp
   case EpubReaderMenuActivity::MenuAction::SEND_CONTEXT: {
-    if (CLAUDE_CONTEXT_STORE.isConfigured()) {
+    if (CROSSPOINT_CONTEXT_STORE.isConfigured()) {
       sendReadingContext();   // see push routine below
     } else {
-      // show "configure relay URL/token in Settings → Claude Context" message
+      // show "configure relay URL/token in Settings → CrossPoint Context" message
     }
     break;
   }
@@ -287,7 +287,7 @@ void EpubReaderActivity::sendReadingContext() {
   const int upToPage  = nextPageNumber;        // guard UINT16_MAX sentinel as in onEnter
 
   // 2. Open chunked POST to the relay.
-  auto& store = ClaudeContextStore::getInstance();
+  auto& store = CrossPointContextStore::getInstance();
   esp_http_client_config_t cfg = {};
   cfg.url = store.getRelayUrl().c_str();
   cfg.method = HTTP_METHOD_POST;
@@ -360,8 +360,8 @@ the first version.
   **not** `HttpDownloader` (GET-only). Use **chunked upload** to preserve streaming, since
   `set_post_field` would buffer the whole body.
 - **Config:** clone `KOReaderCredentialStore` (MAC-XOR obfuscation, JSON on SD, custom
-  URL field) as `ClaudeContextStore`; set via an on-device settings activity (as built),
-  with optional `-DCLAUDE_DEFAULT_*` compile-time defaults for testing.
+  URL field) as `CrossPointContextStore`; set via an on-device settings activity (as built),
+  with optional `-DCROSSPOINT_DEFAULT_*` compile-time defaults for testing.
 - **Menu:** add `MenuAction::SEND_CONTEXT` + a `StrId`, register in `buildMenuItems()`,
   dispatch in `EpubReaderActivity.cpp` modelled on the existing `SYNC` handler; run the
   push inside the reader activity to use live position + layout settings.

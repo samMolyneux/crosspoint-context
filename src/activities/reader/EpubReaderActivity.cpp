@@ -18,7 +18,7 @@
 #include <limits>
 
 #include "BookmarkEntry.h"
-#include "ClaudeContextSendActivity.h"
+#include "CrossPointContextSendActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderBookmarksActivity.h"
@@ -615,8 +615,8 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
         epub.reset();
       }
 
-      activityManager.replaceActivity(std::make_unique<ClaudeContextSendActivity>(renderer, mappedInput, savedEpubPath,
-                                                                                  sendSpineIndex, currentPage));
+      activityManager.replaceActivity(std::make_unique<CrossPointContextSendActivity>(
+          renderer, mappedInput, savedEpubPath, sendSpineIndex, currentPage));
       break;
     }
     case EpubReaderMenuActivity::MenuAction::BOOKMARKS: {

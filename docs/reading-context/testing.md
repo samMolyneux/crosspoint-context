@@ -14,7 +14,7 @@ firmware output should diff cleanly against its shape.
   `secrets.local.json` at the repo root (gitignored; matched by `*.local*`). The relay
   compares a presented bearer token **directly** against the raw `writeToken` / `readToken`
   (no hashing); those values are pasted verbatim into the relay's `.dev.vars`, the
-  firmware's `claude_secrets.ini`, and the skill's `SKILL.md`.
+  firmware's `crosspoint_context_secrets.ini`, and the skill's `SKILL.md`.
 - **Relay running locally** — `npx wrangler dev` (local KV; identical code to a deployed
   Worker). Use `--ip 0.0.0.0` when a device on the LAN needs to reach it.
 - **Fixture** — `fake-book.md`, already truncated at section 2, page 3, with the two
@@ -73,7 +73,7 @@ The three pre-PR checks (run from the firmware repo root):
 
 ```bash
 git submodule update --init open-x4-sdk    # the SDK is a submodule; a shallow clone won't have it
-./bin/clang-format-fix                      # must be clean — zero reflow of the ClaudeContext sources
+./bin/clang-format-fix                      # must be clean — zero reflow of the CrossPointContext sources
 pio check -e default                        # cppcheck --enable=all — expect "No defects found", exit 0
 pio run   -e default                        # must build
 python scripts/gen_i18n.py lib/I18n/translations lib/I18n/   # generator clean, every new StrId exists
@@ -89,15 +89,15 @@ A large jump in either after a change is worth investigating against the 380 KB 
 
 ### 2b. On-device send
 
-1. **Configure** — Settings → System → "Claude Context": set Relay URL to
+1. **Configure** — Settings → System → "CrossPoint Context": set Relay URL to
    `http://<LAN-IP>:<port>/c` (the machine's **LAN IP**, not `localhost` — the ESP32 must
    reach it over WiFi; `wrangler dev` is plain HTTP locally) and paste the write token.
-   (Alternatively a build can bake defaults in via `-DCLAUDE_DEFAULT_RELAY_URL` /
-   `-DCLAUDE_DEFAULT_WRITE_TOKEN`. The literal URL + token live in one gitignored file,
-   `claude_secrets.ini` (a `[claude]` section); `platformio.local.ini` references them with
-   `${claude.relay_url}` / `${claude.write_token}` so the token isn't hand-copied.)
+   (Alternatively a build can bake defaults in via `-DCROSSPOINT_DEFAULT_RELAY_URL` /
+   `-DCROSSPOINT_DEFAULT_WRITE_TOKEN`. The literal URL + token live in one gitignored file,
+   `crosspoint_context_secrets.ini` (a `[crosspoint_context]` section); `platformio.local.ini` references them with
+   `${crosspoint_context.relay_url}` / `${crosspoint_context.write_token}` so the token isn't hand-copied.)
 2. **Read** a few pages into a book so there's a non-trivial position to truncate at.
-3. **Tap** the reader menu → "Send context to Claude". Watch for the on-screen success
+3. **Tap** the reader menu → "Sync to CrossPoint Context". Watch for the on-screen success
    result (and the serial log if monitoring).
 4. **Verify** from the host: `curl -H "Authorization: Bearer $READ" "$RELAY"` and confirm
    the stored body is the real book-so-far — the two header lines present, prose truncated
@@ -133,8 +133,8 @@ must hold. Save a short transcript as the skill's test record.
 Once all three pieces are green, the full phone-style flow:
 
 1. `npx wrangler dev --ip 0.0.0.0` so the ESP32 can reach the relay over WiFi.
-2. Firmware: Settings → Claude Context → `relayUrl = http://<LAN-IP>:<port>/c`, write token.
-3. On the device: open a book, read a few pages, tap "Send context to Claude".
+2. Firmware: Settings → CrossPoint Context → `relayUrl = http://<LAN-IP>:<port>/c`, write token.
+3. On the device: open a book, read a few pages, tap "Sync to CrossPoint Context".
 4. `curl -H "Authorization: Bearer $READ" "$RELAY"` → confirm the body is the real
    book-so-far, truncated at the right page, with the two header lines.
 5. In Claude with the skill installed: ask a read question (answers) and an unread question

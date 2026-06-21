@@ -26,7 +26,7 @@ for the wire seam.
 
    | Repo | Visibility | Status | Contains |
    |------|-----------|--------|----------|
-   | `crosspoint-context` (this) | open | exists | firmware, `lib/ClaudeContext/`, the skill, docs |
+   | `crosspoint-context` (this) | open | exists | firmware, `lib/CrossPointContext/`, the skill, docs |
    | `crosspoint-context-relay` | open | exists | dumb Worker: `GET /c`, `POST /c`, `/ingest`, static raw `TOKENS_JSON`, bundled skill — the **self-hosting reference** |
    | `crosspoint-context-mcp` | **closed** | **NEW** | hosted product: MCP tools, OAuth, `/pair`, dynamic hashed `cred:<sha256(T)>`, `/ingest` |
 
@@ -37,7 +37,7 @@ for the wire seam.
 
 4. **Pairing lives in the closed MCP repo only.** Pairing needs IdP/OAuth, which is the
    hosted side. The open relay keeps static raw tokens; it gets no `/pair`. The firmware
-   `ClaudePairingActivity` is open (in this repo) but talks to the closed MCP origin.
+   `CrossPointPairingActivity` is open (in this repo) but talks to the closed MCP origin.
 
 ---
 
@@ -69,14 +69,14 @@ Stage 2  OAuth + ownerSub→slot   ★ LINCHPIN          ← oauth-mcp Phase 2
               1. server: /pair/start, /pair, KV pending records,
                  dual-token resolution in ingest (raw TOKENS_JSON OR
                  hashed cred:<sha256(T)>)
-              2. firmware: ClaudePairingActivity (one POST, save T,
+              2. firmware: CrossPointPairingActivity (one POST, save T,
                  render QR + nonce, exit — no poll loop)
               3. coexistence check: manual token AND paired token both
                  push to /ingest; legacy GET /c skill flow untouched
 
 Stage 4  Firmware cleanup                            ← oauth-mcp Phase 4
          CAN START AT STAGE 1 (depends only on /ingest existing, not auth):
-         drop -DCLAUDE_DEFAULT_WRITE_TOKEN + its store branch; KEEP the
+         drop -DCROSSPOINT_DEFAULT_WRITE_TOKEN + its store branch; KEEP the
          baked-in URL; store holds origin only, client appends /ingest.
          Pull forward to de-risk the firmware side early.
 
@@ -105,6 +105,6 @@ Stage 5  Multi-user (optional)                       ← oauth-mcp Phase 5
 | TODO item | Covered by |
 |-----------|-----------|
 | OAuth + MCP | Stages 1–2 (+ Track A, Stage 5) |
-| Remove/clean up default token stuff | Stage 4 (drop `-DCLAUDE_DEFAULT_WRITE_TOKEN`, keep URL) |
+| Remove/clean up default token stuff | Stage 4 (drop `-DCROSSPOINT_DEFAULT_WRITE_TOKEN`, keep URL) |
 | skill refinement? | Track A (guidance → server instructions; skill retained as open-relay example) |
 | include past reading somehow | Out of scope here — needs section markers (deferred contract change) |

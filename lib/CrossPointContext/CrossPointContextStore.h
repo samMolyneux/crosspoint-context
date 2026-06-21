@@ -2,30 +2,30 @@
 #include <string>
 
 /**
- * Singleton storing the configuration for pushing reading context to a Claude relay.
+ * Singleton storing the configuration for pushing reading context to a CrossPoint Context relay.
  *
  * Holds the relay URL and a write-only bearer token. The token is XOR-obfuscated with the
  * device's hardware MAC and base64-encoded before being written to JSON on the SD card —
  * the same scheme KOReaderCredentialStore uses for passwords (not cryptographically
  * secure, but prevents casual reading and ties the token to this device).
  */
-class ClaudeContextStore {
+class CrossPointContextStore {
  private:
-  static ClaudeContextStore instance;
+  static CrossPointContextStore instance;
   std::string relayUrl;    // server origin, e.g. https://crosspoint-context-mcp.example.workers.dev
   std::string writeToken;  // bearer token; obfuscated at rest
 
-  ClaudeContextStore() = default;
+  CrossPointContextStore() = default;
 
-  // Fill the relay URL from the compile-time default (-DCLAUDE_DEFAULT_RELAY_URL) when unset.
+  // Fill the relay URL from the compile-time default (-DCROSSPOINT_DEFAULT_RELAY_URL) when unset.
   // No-op when the macro is undefined. There is deliberately no default write token.
   void applyCompileTimeDefaults();
 
  public:
-  ClaudeContextStore(const ClaudeContextStore&) = delete;
-  ClaudeContextStore& operator=(const ClaudeContextStore&) = delete;
+  CrossPointContextStore(const CrossPointContextStore&) = delete;
+  CrossPointContextStore& operator=(const CrossPointContextStore&) = delete;
 
-  static ClaudeContextStore& getInstance() { return instance; }
+  static CrossPointContextStore& getInstance() { return instance; }
 
   // Persistence (JSON on SD card)
   bool saveToFile() const;
@@ -49,4 +49,4 @@ class ClaudeContextStore {
 };
 
 // Helper macro to access the store, mirroring KOREADER_STORE.
-#define CLAUDE_CONTEXT_STORE ClaudeContextStore::getInstance()
+#define CROSSPOINT_CONTEXT_STORE CrossPointContextStore::getInstance()

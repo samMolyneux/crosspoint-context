@@ -1,7 +1,7 @@
 # Reading Context → Claude: Implementation Plan
 
 A tool to send the contents of a book *up to the reader's current position* from a
-CrossPoint e-reader to Claude, so questions like "who is X" or "draw me a map of this
+CrossPoint e-reader to CrossPoint Context, so questions like "who is X" or "draw me a map of this
 battle" can be answered with confidence that nothing past the reading point is in
 context.
 
@@ -187,7 +187,7 @@ Once this round-trips, the relay is done.
 ### Trigger
 
 A new entry in the reading menu (same menu as screenshot / go-to-chapter), e.g.
-**"Send context to Claude"**. Tapping it runs the push routine once. No timer, no
+**"Sync to CrossPoint Context"**. Tapping it runs the push routine once. No timer, no
 page-turn hook — the tap happens when the user turns to ask a question, so freshness is
 maximal exactly when it's needed.
 
@@ -207,8 +207,8 @@ Content-Type: text/markdown
 
 The `WRITE_TOKEN` and relay URL are stored in a persisted device config, not hard-coded.
 (As built, they're entered through an **on-device settings activity** — Settings → System
-→ "Claude Context" — matching the codebase's KOReader/OPDS credential convention, with
-optional `-DCLAUDE_DEFAULT_*` compile-time defaults for testing.)
+→ "CrossPoint Context" — matching the codebase's KOReader/OPDS credential convention, with
+optional `-DCROSSPOINT_DEFAULT_*` compile-time defaults for testing.)
 
 ### Extraction
 
@@ -234,7 +234,7 @@ handling — is in the technical companion):
 
 ```
 on SEND_CONTEXT:
-    if not relay configured: show "configure in Settings → Claude Context"; stop
+    if not relay configured: show "configure in Settings → CrossPoint Context"; stop
     open chunked POST to relay_url
         headers: Authorization: Bearer <write_token>, Content-Type: text/markdown
     write header lines: "# <title> — <author>"
@@ -259,7 +259,7 @@ on SEND_CONTEXT:
   coincides with turning to the phone, connectivity is normally available. If the POST
   fails, show a short on-screen error so the user knows to retry.
 - **Config.** Store `relay_url` and `write_token` in a persisted device config. (As built:
-  an on-device settings activity, with optional `-DCLAUDE_DEFAULT_*` compile-time defaults.)
+  an on-device settings activity, with optional `-DCROSSPOINT_DEFAULT_*` compile-time defaults.)
 
 ### Test
 
@@ -324,7 +324,7 @@ matter how widely it reads.
 ## End-to-end flow (phone)
 
 1. Finish a passage on the reader.
-2. Tap **"Send context to Claude"** → fresh push to your slot.
+2. Tap **"Sync to CrossPoint Context"** → fresh push to your slot.
 3. Open the Claude app, ask your question.
 4. The skill fetches your slot, reads it as the question needs — a name lookup, a passage
    in full, or a thread across chapters — and answers from it.
@@ -423,8 +423,8 @@ These were the unknowns before inspecting the source; all are now resolved in
 - **`sections/<n>.bin` indexing** — resolved: files are named by spine index
   (`sections/<spineIndex>.bin`), so iterate `0 .. spineIndex`.
 - **Settings storage** — resolved: clone the `KOReaderCredentialStore` pattern (JSON on
-  SD, MAC-XOR-obfuscated secret, custom-URL field) as a `ClaudeContextStore`; set via an
-  on-device settings activity (as built), with optional `-DCLAUDE_DEFAULT_*` defaults.
+  SD, MAC-XOR-obfuscated secret, custom-URL field) as a `CrossPointContextStore`; set via an
+  on-device settings activity (as built), with optional `-DCROSSPOINT_DEFAULT_*` defaults.
 - **HTTP client + TLS** — resolved: use the `esp_http_client` POST pattern from
   `KOReaderSyncClient`; `HttpDownloader` is GET-only. Use chunked upload to stay
   streaming.

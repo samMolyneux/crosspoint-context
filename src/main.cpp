@@ -18,7 +18,7 @@
 
 #include <cstring>
 
-#include "ClaudeContextStore.h"
+#include "CrossPointContextStore.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "KOReaderCredentialStore.h"
@@ -351,7 +351,7 @@ void setup() {
   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
   KOREADER_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();
-  CLAUDE_CONTEXT_STORE.loadFromFile();
+  CROSSPOINT_CONTEXT_STORE.loadFromFile();
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
 

@@ -41,7 +41,7 @@ Base path: `/c` (the relay serves only this path; anything else → 404).
 - **Never log raw tokens or body contents.**
 - Master copy of the tokens: `crosspoint-context/secrets.local.json` (gitignored) — the one
   place values are edited, then pasted verbatim into the consumers (`.dev.vars`,
-  `claude_secrets.ini`, `SKILL.md`).
+  `crosspoint_context_secrets.ini`, `SKILL.md`).
 
 ## Body format
 

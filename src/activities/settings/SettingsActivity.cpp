@@ -8,8 +8,8 @@
 #include <cstring>
 
 #include "ButtonRemapActivity.h"
-#include "ClaudeContextSettingsActivity.h"
 #include "ClearCacheActivity.h"
+#include "CrossPointContextSettingsActivity.h"
 #include "CrossPointSettings.h"
 #include "FontDownloadActivity.h"
 #include "FontSelectionActivity.h"
@@ -58,7 +58,7 @@ void SettingsActivity::rebuildSettingsLists() {
                           SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLAUDE_CONTEXT, SettingAction::ClaudeContext));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_CPCONTEXT_NAME, SettingAction::CrossPointContext));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
@@ -237,8 +237,9 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::KOReaderSync:
         startActivityForResult(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInput), resultHandler);
         break;
-      case SettingAction::ClaudeContext:
-        startActivityForResult(std::make_unique<ClaudeContextSettingsActivity>(renderer, mappedInput), resultHandler);
+      case SettingAction::CrossPointContext:
+        startActivityForResult(std::make_unique<CrossPointContextSettingsActivity>(renderer, mappedInput),
+                               resultHandler);
         break;
       case SettingAction::OPDSBrowser:
         startActivityForResult(std::make_unique<OpdsServerListActivity>(renderer, mappedInput), resultHandler);
