@@ -19,6 +19,7 @@
 #include "SilentRestart.h"
 #include "activities/ActivityManager.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/settings/ClaudePairingActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -180,12 +181,21 @@ void ClaudeContextSendActivity::performUpload() {
     } else {
       state = FAILED;
       statusMessage = ClaudeContextClient::errorString(result);
+      // A rejected token usually means pairing lapsed or never completed — offer a shortcut
+      // straight to the pairing screen rather than making the user dig through settings.
+      canRepair = (result == ClaudeContextClient::UNAUTHORIZED);
     }
   }
   requestUpdate(true);
 }
 
 void ClaudeContextSendActivity::returnToReader() { activityManager.goToReader(epubPath); }
+
+void ClaudeContextSendActivity::startRepair() {
+  // Jump straight to pairing. It runs its own WiFi session and silent-reboots on exit, so we
+  // never return here — pass a no-op result handler (same pattern as the settings menu).
+  startActivityForResult(std::make_unique<ClaudePairingActivity>(renderer, mappedInput), [](const ActivityResult&) {});
+}
 
 void ClaudeContextSendActivity::onExit() {
   Activity::onExit();
@@ -201,6 +211,10 @@ void ClaudeContextSendActivity::onExit() {
 
 void ClaudeContextSendActivity::loop() {
   if (state == NOT_CONFIGURED || state == DONE || state == FAILED) {
+    if (state == FAILED && canRepair && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      startRepair();
+      return;
+    }
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       returnToReader();
     }
@@ -237,7 +251,8 @@ void ClaudeContextSendActivity::render(RenderLock&&) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, statusMessage.c_str());
   }
 
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+  const char* confirmLabel = (state == FAILED && canRepair) ? tr(STR_CLAUDE_REPAIR) : "";
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

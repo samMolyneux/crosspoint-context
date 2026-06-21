@@ -50,10 +50,12 @@ class ClaudeContextSendActivity final : public Activity {
   State state = EXTRACTING;
   std::string statusMessage;
   bool wifiActivated = false;
+  bool canRepair = false;  // true when the failure was a rejected token (offer "Re-pair")
 
   // Writes the truncated book-so-far to the temp file. EPUB is loaded and released here.
   bool extractToTempFile();
   void onWifiSelectionComplete(bool success);
   void performUpload();
   void returnToReader();
+  void startRepair();
 };
