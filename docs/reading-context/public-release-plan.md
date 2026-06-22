@@ -40,10 +40,12 @@ live. This doc is the *next phase* (public launch), not yet started.
 ## Work to do (priority order)
 
 ### Blockers — won't function for others / can't legally launch
-1. **Bake the public origin into committed release builds.** Add
-   `-DCROSSPOINT_DEFAULT_RELAY_URL="https://crosspoint-context-mcp.mount-payments.workers.dev"`
-   to the committed `gh_release` / `gh_release_rc` / `slim` envs in `platformio.ini` (URL is
-   public, not a secret). ~1-line change; it's what makes a flashed device reach the server.
+1. **[DONE 2026-06-22] Bake the public origin into committed release builds.** Added
+   `public_origin` to the `[crosspoint]` section of `platformio.ini` and referenced it via
+   `-DCROSSPOINT_DEFAULT_RELAY_URL=\"${crosspoint.public_origin}\"` in the committed
+   `gh_release` / `gh_release_rc` / `slim` envs. Verified all three resolve to
+   `https://crosspoint-context-mcp.mount-payments.workers.dev` via `pio project config`.
+   Dev `default` env still gets its origin from the gitignored `platformio.local.ini`.
 2. **Google OAuth verification** (external lead time). Unverified Google apps cap at ~100
    users + show a scary warning. Needs homepage + privacy policy + scope justification. Start
    early. GitHub has no equivalent gate for basic scopes.
@@ -51,10 +53,20 @@ live. This doc is the *next phase* (public launch), not yet started.
    #2 and on its own. Need a retention statement + user-facing delete of `ctx:<slot>`.
 
 ### Strongly recommended — abuse & cost control (handing strangers your CF budget)
-4. **Per-user/token rate-limit on `/ingest`** (and `/mcp`). Currently unlimited.
-5. **Storage caps + retention.** Each `ctx:<slot>` ≤ 5 MB; N users = unbounded KV growth.
-   KV free tier (~1 GB, ~1k writes/day) will blow. Add inactivity TTL on `ctx:<slot>` and/or
-   per-account cap.
+4. **[IMPLEMENTED 2026-06-22, pending deploy] Per-user/token rate-limit on `/ingest` (and
+   `/mcp`).** Added `INGEST_LIMITER` (12/60s, keyed `ingest:<slot>`) checked after auth in
+   `ingest.ts`, and `MCP_LIMITER` (60/60s, keyed `mcp:<slot>`) in `mcp.ts` — both keyed by the
+   authenticated slot. Plus `INGEST_IP_LIMITER` (60/60s, keyed by client IP) applied **before**
+   auth in `index.ts`, closing the bogus-token flood that would otherwise burn a `cred:` KV
+   read per junk request. Bound in `wrangler.jsonc` (namespace_id 1003/1004/1005). `tsc` +
+   `wrangler deploy --dry-run` clean. Caveat: the simple ratelimit binding only allows period
+   10/60 s, so these cap bursts, not a daily total — daily volume is bounded by #5.
+5. **[IMPLEMENTED 2026-06-22, pending deploy] Storage caps + retention.** Added 90-day
+   inactivity TTL (`CTX_TTL_SECONDS = 7_776_000`) on the `ctx:<slot>` write in `ingest.ts`;
+   every push resets the clock, so idle accounts are GC'd. Combined with the existing 5 MB
+   `MAX_BYTES` per-account body cap, total KV is bounded to ~(5 MB × accounts active in the
+   window). Feeds the #3 privacy retention statement. NOTE: this is the **reading-context data**
+   TTL, NOT the write token — `cred:` tokens still never expire (that's #6, still open).
 6. **`cred:` revocation + expiry (security finding #5).** Never-expiring write creds with no
    revoke = liability at scale. (Note: owner currently has ~4 orphaned `cred:` records — pure
    downside, write-only-to-own-slot risk; cleanup = delete all + re-pair once, or build revoke.)
@@ -83,5 +95,5 @@ the hosted MCP as a **capped free default**, steer heavy users to self-host — 
 liability without gating access. Decide this before sizing #4/#5.
 
 ## Lowest-effort high-leverage starting points
-- #1 (origin bake) — 1 line, unblocks "others can connect".
+- ~~#1 (origin bake)~~ — **DONE 2026-06-22**, committed builds now reach the hosted server.
 - #4 + #5 (ingest rate-limit + ctx TTL) — the server hardening that bounds your cost/risk.

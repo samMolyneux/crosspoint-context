@@ -2,5 +2,4 @@
 - update MCP instructions so that it doesn't use strict set of tools (give llm ability to grep and search or investigate alternatives)
 - When the user does something wifi based from the reading screen (eg. pair the mcp) there is often an issue connecting, needs invetigating, not sure if its an existing crosspoint issue
 - security: refuse to send bearer token / book body over a non-HTTPS (http://) origin unless an explicit debug flag is set (firmware HTTP-downgrade guard, finding #2)
-- security: device-code consent phishing mitigation — require typing the device-shown nonce into the phone instead of the link auto-carrying it (UX tradeoff, finding #4)
-- security: device unpair/revoke — a way to delete a cred: record so a lost/old device token can be revoked (finding #5)
+- what happens when the mcp is used with nothing in the slot
