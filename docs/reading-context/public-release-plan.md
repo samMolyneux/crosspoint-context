@@ -51,9 +51,16 @@ live. This doc is the *next phase* (public launch), not yet started.
    early. GitHub has no equivalent gate for basic scopes.
 3. **Privacy policy + data-deletion path.** You'd store others' reading content. Required for
    #2 and on its own. Need a retention statement + user-facing delete of `ctx:<slot>`.
+   - **[DONE 2026-06-22 — code half] Data-deletion path.** Added login-gated `GET/POST
+     /account` (`account.ts`): a signed-in user can delete their `ctx:<slot>` and revoke all
+     their `cred:` tokens. Retention statement = the 90-day inactivity TTL (#5). **Still TODO
+     (yours):** write the actual privacy-policy text + a homepage (also needed for #2).
+     Residual: `/account` deletes reading content + credentials but keeps the pseudonymous
+     `ownerSub:<sub>→slot` pointer (no book content); decide if a full "close account" should
+     drop that too.
 
 ### Strongly recommended — abuse & cost control (handing strangers your CF budget)
-4. **[IMPLEMENTED 2026-06-22, pending deploy] Per-user/token rate-limit on `/ingest` (and
+4. **[DONE 2026-06-22 — deployed] Per-user/token rate-limit on `/ingest` (and
    `/mcp`).** Added `INGEST_LIMITER` (12/60s, keyed `ingest:<slot>`) checked after auth in
    `ingest.ts`, and `MCP_LIMITER` (60/60s, keyed `mcp:<slot>`) in `mcp.ts` — both keyed by the
    authenticated slot. Plus `INGEST_IP_LIMITER` (60/60s, keyed by client IP) applied **before**
@@ -61,21 +68,26 @@ live. This doc is the *next phase* (public launch), not yet started.
    read per junk request. Bound in `wrangler.jsonc` (namespace_id 1003/1004/1005). `tsc` +
    `wrangler deploy --dry-run` clean. Caveat: the simple ratelimit binding only allows period
    10/60 s, so these cap bursts, not a daily total — daily volume is bounded by #5.
-5. **[IMPLEMENTED 2026-06-22, pending deploy] Storage caps + retention.** Added 90-day
+5. **[DONE 2026-06-22 — deployed] Storage caps + retention.** Added 90-day
    inactivity TTL (`CTX_TTL_SECONDS = 7_776_000`) on the `ctx:<slot>` write in `ingest.ts`;
    every push resets the clock, so idle accounts are GC'd. Combined with the existing 5 MB
    `MAX_BYTES` per-account body cap, total KV is bounded to ~(5 MB × accounts active in the
    window). Feeds the #3 privacy retention statement. NOTE: this is the **reading-context data**
-   TTL, NOT the write token — `cred:` tokens still never expire (that's #6, still open).
-6. **`cred:` revocation + expiry (security finding #5).** Never-expiring write creds with no
-   revoke = liability at scale. (Note: owner currently has ~4 orphaned `cred:` records — pure
-   downside, write-only-to-own-slot risk; cleanup = delete all + re-pair once, or build revoke.)
+   TTL, NOT the write token (that's #6, now also done).
+6. **[DONE 2026-06-22 — pending deploy] `cred:` revocation + expiry (security finding #5).**
+   New paired `cred:` records now carry a 1-year TTL (`CRED_TTL` in `pairing.ts`), and the
+   `/account` page (see #3) revokes all of an identity's `cred:` records on demand. Confirmed
+   live: owner had exactly 4 never-expiring orphaned `cred:` records (all → `me`) — clean them
+   by signing into `/account` and clicking "Revoke all", then re-pair. **Firmware TODO:** detect
+   the 401 when a token expires/is revoked and prompt re-pairing (no auto-prompt yet).
 7. **Consent-phishing mitigation (security finding #4).** At scale, tricking a victim into
    approving the attacker's device token (write-poisoning their context) is realistic. Fix:
    require typing the device-shown nonce on the phone instead of the link auto-carrying it.
 8. **HTTP-downgrade guard (security finding #2).** Strangers misconfigure origins; refuse to
    send bearer token / book body over `http://` unless an explicit debug flag is set.
-9. **Confirm DCR `/register` records carry a TTL** (flagged needs-verification in the review).
+9. **[VERIFIED 2026-06-22 — no action] DCR `/register` records carry a TTL.** Live `OAUTH_KV`
+   inspection confirms every `client:*` key has an expiration set (≈2-3 months out), as do all
+   `grant:*` and `token:*` records. The OAuth side self-cleans; nothing to do.
 
 ### Cleanup / polish
 10. **Retire migration cruft:** the `OWNER_GITHUB_ID → me` special-case and the legacy
