@@ -74,12 +74,17 @@ live. This doc is the *next phase* (public launch), not yet started.
    `MAX_BYTES` per-account body cap, total KV is bounded to ~(5 MB × accounts active in the
    window). Feeds the #3 privacy retention statement. NOTE: this is the **reading-context data**
    TTL, NOT the write token (that's #6, now also done).
-6. **[DONE 2026-06-22 — pending deploy] `cred:` revocation + expiry (security finding #5).**
-   New paired `cred:` records now carry a 1-year TTL (`CRED_TTL` in `pairing.ts`), and the
-   `/account` page (see #3) revokes all of an identity's `cred:` records on demand. Confirmed
-   live: owner had exactly 4 never-expiring orphaned `cred:` records (all → `me`) — clean them
-   by signing into `/account` and clicking "Revoke all", then re-pair. **Firmware TODO:** detect
-   the 401 when a token expires/is revoked and prompt re-pairing (no auto-prompt yet).
+6. **[DONE 2026-06-22 — revocation only; expiry deliberately dropped] `cred:` revocation
+   (security finding #5).** The `/account` page (see #3) revokes all of an identity's `cred:`
+   records on demand — the way to retire orphaned/lost device tokens. Confirmed live: owner had
+   exactly 4 orphaned `cred:` records (all → `me`); clean them via `/account` → "Revoke all",
+   then re-pair. **Fixed expiry was added then removed** (briefly shipped a 1-year `CRED_TTL`):
+   a cred is write-only to its own slot (low blast radius), and KV TTL can't distinguish an
+   active device from an orphan without a per-ingest re-write (fights the ingest write-quota
+   budget), so a fixed TTL would only force silent yearly re-pair. Reintroduce expiry only with
+   (a) firmware that catches the 401 and prompts re-pair, or (b) sliding expiration. Until then,
+   revocation is the lever. **Firmware TODO** (for when expiry returns): detect a write 401 and
+   prompt re-pairing.
 7. **Consent-phishing mitigation (security finding #4).** At scale, tricking a victim into
    approving the attacker's device token (write-poisoning their context) is realistic. Fix:
    require typing the device-shown nonce on the phone instead of the link auto-carrying it.
