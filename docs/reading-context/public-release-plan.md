@@ -40,6 +40,12 @@ live. This doc is the *next phase* (public launch), not yet started.
 ## Work to do (priority order)
 
 ### Blockers — won't function for others / can't legally launch
+
+> **Items #2 and #3 — plus a new foundational task (dedicated Cloudflare account + real
+> domain) — are planned in depth in [`launch-prereqs-plan.md`](launch-prereqs-plan.md).** They
+> form one dependency chain (domain → repoint origin/OAuth → homepage+policy → Google
+> verification) and are the long-lead-time external/infra track.
+
 1. **[DONE 2026-06-22] Bake the public origin into committed release builds.** Added
    `public_origin` to the `[crosspoint]` section of `platformio.ini` and referenced it via
    `-DCROSSPOINT_DEFAULT_RELAY_URL=\"${crosspoint.public_origin}\"` in the committed
