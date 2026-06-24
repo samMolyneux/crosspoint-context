@@ -5,13 +5,11 @@ spoiler-free **Reading Context** feature on top of the
 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
 firmware it is forked from.
 
-Tap **"Sync to CrossPoint Context"** on the device and it pushes the book *up to your
-current page* to a small relay. An AI assistant then reads that text and answers
-questions about what you're reading — **never revealing anything past where you've
-actually read**, and never drawing on outside knowledge of the book. Ask "who is
-this character again?", "what just happened?", or "remind me what that place is" —
-without the usual risk of an AI spoiling the ending it already knows. The transport
-is plain HTTP, so any tool-capable LLM or agent can consume it.
+Read on the device, tap **"Sync to CrossPoint Context"**, and an AI assistant can answer
+questions about the book *up to your current page* — **never revealing anything past where
+you've actually read**, and never drawing on outside knowledge of the book. Ask "who is
+this character again?", "what just happened?", or "remind me what that place is" — without
+the usual risk of an AI spoiling the ending it already knows.
 
 > Forked from [crosspoint-reader/crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)
 > (MIT). All of the base reading firmware is upstream's work; this fork adds the
@@ -23,24 +21,39 @@ is plain HTTP, so any tool-capable LLM or agent can consume it.
 
 ## Reading Context
 
-The feature has three pieces:
+The simplest path uses the hosted **CrossPoint Context** service — pair the device once,
+connect your assistant, and there are no tokens to copy around. Prefer to run your own
+server? See [Self-hosting](#self-hosting) below.
 
-1. **The device** (this repo) — extracts the book text up to your current page and
-   pushes it over HTTPS to a server with a write token.
-2. **A relay** — stores the latest push and serves it back to a reader with a read
-   token. Self-host the open-source reference:
-   [**crosspoint-context-relay**](https://github.com/samMolyneux/crosspoint-context-relay)
-   (clone it, set a token pair, point your device at it, use the bundled skill).
-3. **An AI assistant** — fetches the stored text and answers strictly from it. The
-   relay ships a reference consumer implemented as a Claude skill (`skill/`), but any
-   LLM or agent that can fetch a URL with a bearer token works just as well.
+### Quick start (hosted)
 
-The exact wire format between the three is documented in
-[`docs/reading-context/CONTRACT.md`](./docs/reading-context/CONTRACT.md).
+1. **Flash** the firmware (see [Install](#install)). Release builds point at the hosted
+   service by default.
+2. **Pair the device.** On the reader: **Settings → CrossPoint Context → Pair**. It shows a
+   QR code and a short code — scan it with your phone (or open the shown URL and type the
+   code), sign in with GitHub or Google, and approve. The device is now bound to your
+   account; nothing to copy by hand.
+3. **Connect your assistant.** In Claude (or any [MCP](https://modelcontextprotocol.io)
+   client), add a custom connector for `https://mcp.crosspoint-context.com/mcp` and sign in
+   with the same account. It exposes read tools that return only the passages your assistant
+   needs — never anything past your current page.
+4. **Read and ask.** Read on the device, tap **"Sync to CrossPoint Context"**, then ask your
+   assistant about the book.
 
-On-device, configure the server origin and write token under
-**Settings → Reading Context**. Self-hosters point this at their own relay; over a
-trusted LAN a plain `http://` relay works, otherwise use `https://`.
+The hosted server handles identity (OAuth) and serves your reading position over MCP; it only
+ever exposes text up to the page you've read.
+
+### Self-hosting
+
+Don't want to use the hosted service? Run your own server instead. The open-source
+[**crosspoint-context-relay**](https://github.com/samMolyneux/crosspoint-context-relay) is a
+small Cloudflare Worker that stores the latest push and serves it back behind a bearer token;
+its README has step-by-step deploy instructions (a few minutes on a free Cloudflare account).
+Then on the device choose **Settings → CrossPoint Context** and enter your relay URL and write
+token manually. Read it with the bundled reference consumer (a Claude skill) — or any
+tool-capable LLM/agent, since the relay is plain HTTP behind a token. Over a trusted LAN a
+plain `http://` relay works; otherwise use `https://`. Wire format:
+[`CONTRACT.md`](./docs/reading-context/CONTRACT.md).
 
 ---
 
