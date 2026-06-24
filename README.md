@@ -5,16 +5,13 @@ spoiler-free **Reading Context** feature on top of the
 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
 firmware it is forked from.
 
-Read on the device, open the reading menu, select **"Sync to CrossPoint Context"**, and an AI assistant can answer
-questions about the book *up to your current page* — **never revealing anything past where
-you've actually read**. Ask "who is this character again?", "what just happened?", or "draw me a map" — without
-the usual risk of an AI spoiling the ending it already knows.
+A reader-menu action that extracts the book's text up to the current page (from the render cache, text-only, with a spoiler-guard header), stages it to SD, and uploads it over WiFi to a relay's /ingest endpoint — where an AI assistant can later read it via the read token and MCP skill. Pairing the device uses a optional QR-based OAuth device flow to provision its write token.
+
+To use: open the reading menu, select "Sync to CrossPoint Context", and your chosen chatbot can answer questions about the book without the risk of spoilers eg. "who is this character?", "how historically accurate is the depiction of this?", or "draw me a map of the battle" — from direct book context.
 
 > Forked from [crosspoint-reader/crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)
 > (MIT). All of the base reading firmware is upstream's work; this fork adds the
 > reading-context feature. See [LICENSE](./LICENSE).
-
-![CrossPoint running on Xteink device](./docs/images/cover.jpg)
 
 ---
 
@@ -35,11 +32,10 @@ connect your assistant, and there are no tokens to copy around.
    client), add a custom connector for `https://mcp.crosspoint-context.com/mcp` and sign in
    with the same account. It exposes read tools that return only the passages your assistant
    needs — never anything past your current page.
-4. **Read and ask.** Read on the device, tap **"Sync to CrossPoint Context"**, then ask your
+4. **Read and ask.** Read on the device, open the reading menu, select **"Sync to CrossPoint Context"**, then ask your
    assistant about the book.
 
-The hosted server handles identity (OAuth) and serves your reading position over MCP; it only
-ever exposes text up to the page you've read.
+The hosted server handles identity (OAuth) and serves your reading position over MCP.
 
 ### Hosted service
 
