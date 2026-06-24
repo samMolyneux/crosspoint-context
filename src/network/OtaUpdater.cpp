@@ -17,7 +17,9 @@
 #include <string>
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/crosspoint-reader/crosspoint-reader/releases/latest";
+// OTA tracks THIS fork's own releases, not upstream — upstream builds have no CrossPoint Context
+// feature and would migrate the device off the fork. Repo must stay public for anonymous download.
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/samMolyneux/crosspoint-context/releases/latest";
 
 esp_err_t http_client_set_header_cb(esp_http_client_handle_t http_client) {
   return esp_http_client_set_header(http_client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
