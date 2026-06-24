@@ -1,6 +1,6 @@
 # CrossPoint Context
 
-E-reader firmware for the ESP32-C3-based Xteink **X4** that adds a
+E-reader firmware for the ESP32-C3-based Xteink **X4**/**X3** that adds a
 spoiler-free **Reading Context** feature on top of the
 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
 firmware it is forked from.
@@ -97,8 +97,8 @@ still use it as the flashing tool with a `firmware.bin` from this repo's release
 1. Download **`firmware.bin`** from the
    [latest release](https://github.com/samMolyneux/crosspoint-context/releases/latest).
 2. On a desktop in **Chrome or Edge**, open
-   [crosspointreader.com/#flash-tools](https://crosspointreader.com/#flash-tools), select **X4**,
-   click **"Custom .bin"**, and upload the `firmware.bin` you downloaded.
+   [crosspointreader.com/#flash-tools](https://crosspointreader.com/#flash-tools), select your
+   device (**X3** or **X4**), click **"Custom .bin"**, and upload the `firmware.bin` you downloaded.
 
 After the first install, new versions arrive over WiFi via **OTA** (Settings → firmware update)
 from this fork's own releases — no re-flash needed.
