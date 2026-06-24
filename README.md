@@ -1,16 +1,17 @@
 # CrossPoint Context
 
 E-reader firmware for the ESP32-C3-based Xteink **X4**/**X3** that adds a
-spoiler-free **"Reading Context → Claude"** feature on top of the
+spoiler-free **Reading Context** feature on top of the
 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
 firmware it is forked from.
 
-Tap **"Send context to Claude"** on the device and it pushes the book *up to your
-current page* to a small relay. A Claude skill then reads that text and answers
+Tap **"Sync to CrossPoint Context"** on the device and it pushes the book *up to your
+current page* to a small relay. An AI assistant then reads that text and answers
 questions about what you're reading — **never revealing anything past where you've
 actually read**, and never drawing on outside knowledge of the book. Ask "who is
 this character again?", "what just happened?", or "remind me what that place is" —
-without the usual risk of an AI spoiling the ending it already knows.
+without the usual risk of an AI spoiling the ending it already knows. The transport
+is plain HTTP, so any tool-capable LLM or agent can consume it.
 
 > Forked from [crosspoint-reader/crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)
 > (MIT). All of the base reading firmware is upstream's work; this fork adds the
@@ -20,7 +21,7 @@ without the usual risk of an AI spoiling the ending it already knows.
 
 ---
 
-## Reading Context → Claude
+## Reading Context
 
 The feature has three pieces:
 
@@ -30,8 +31,9 @@ The feature has three pieces:
    token. Self-host the open-source reference:
    [**crosspoint-context-relay**](https://github.com/samMolyneux/crosspoint-context-relay)
    (clone it, set a token pair, point your device at it, use the bundled skill).
-3. **A Claude skill** — fetches the stored text and answers strictly from it. It
-   ships with the relay (`skill/`).
+3. **An AI assistant** — fetches the stored text and answers strictly from it. The
+   relay ships a reference consumer implemented as a Claude skill (`skill/`), but any
+   LLM or agent that can fetch a URL with a bearer token works just as well.
 
 The exact wire format between the three is documented in
 [`docs/reading-context/CONTRACT.md`](./docs/reading-context/CONTRACT.md).

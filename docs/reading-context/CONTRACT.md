@@ -1,4 +1,4 @@
-# Wire Contract — Reading Context → Claude
+# Wire Contract — Reading Context
 
 **This file is the single source of truth for the seam between the three pieces (relay,
 firmware, skill). Do not change it without updating all three sessions.** Single-user:
@@ -19,7 +19,7 @@ Base path: `/c` (the relay serves only this path; anything else → 404).
   - `401` `Unauthorized` — missing/unknown token (not the known `writeToken`).
   - `413` `Too large` — body > 5,000,000 bytes.
 
-### `GET /c` — read (Claude's skill pulls)
+### `GET /c` — read (the AI assistant's consumer pulls)
 - Header: `Authorization: Bearer <READ_TOKEN>` (required)
 - Responses:
   - `200` — returns the stored body verbatim, `Content-Type: text/markdown; charset=utf-8`.

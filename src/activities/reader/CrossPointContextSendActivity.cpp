@@ -26,7 +26,7 @@
 namespace {
 // Staging file for the extracted body. Written with the EPUB loaded, then uploaded after
 // the EPUB is released so the two never compete for heap.
-constexpr char TEMP_PATH[] = "/.crosspoint/claude_ctx.tmp";
+constexpr char TEMP_PATH[] = "/.crosspoint/context.tmp";
 }  // namespace
 
 bool CrossPointContextSendActivity::extractToTempFile() {
