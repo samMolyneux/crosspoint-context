@@ -1,5 +1,18 @@
 - include past reading some how - maybe a seperate skill
 - update MCP instructions so that it doesn't use strict set of tools (give llm ability to grep and search or investigate alternatives)
 - When the user does something wifi based from the reading screen (eg. pair the mcp) there is often an issue connecting, needs invetigating, not sure if its an existing crosspoint issue
+    - fresh state
+    - user selects sync to crosspoint context
+    - connects and starts to send > bad write token error
+    - click repair > connection failed Error:connection timed out
+    - done
+    - Forget network? > click cancel
+    - wifi screen doesn't work - won't trigger re scan
+    - go back then to settings
+    - scan and connect with no issue
+    - go back to book
+    - failed sync and repair path attempted again, fails again
+    - settings > crosspoint context > pair with crosspoint context > works as expected
 - security: refuse to send bearer token / book body over a non-HTTPS (http://) origin unless an explicit debug flag is set (firmware HTTP-downgrade guard, finding #2)
-- what happens when the mcp is used with nothing in the slot
+- new cloudflare account and new domain
+- add help for connecting/error states to MCP (pointer to readme?)
