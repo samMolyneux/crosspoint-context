@@ -7,8 +7,8 @@
 #include "activities/Activity.h"
 
 /**
- * No-type device pairing for the CrossPoint Context feature (device-pairing-plan.md,
- * Track B). Makes ONE POST <origin>/pair/start, saves the returned write token, and renders a
+ * No-type device pairing for the CrossPoint Context feature. Makes ONE POST
+ * <origin>/pair/start, saves the returned write token, and renders a
  * QR (plus a short, typeable nonce) that the user finishes on their phone. No polling — the
  * device shows the code and is done; the next "Send context" doubles as the success check.
  *

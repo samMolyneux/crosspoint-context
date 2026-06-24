@@ -63,7 +63,7 @@ void CrossPointContextStore::applyCompileTimeDefaults() {
   }
 #endif
   // No compile-time default write token: a baked-in credential is a security smell, and the
-  // token is now obtained per-device via pairing (or manual entry). See device-pairing-plan.md.
+  // token is obtained per-device via pairing (or manual entry).
 }
 
 void CrossPointContextStore::setConfig(const std::string& url, const std::string& token) {

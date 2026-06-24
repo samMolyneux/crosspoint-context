@@ -27,7 +27,7 @@ class CrossPointContextClient {
   // be connected. Streams the file in chunks; only one small buffer is resident.
   static Error postFile(const char* path);
 
-  // Result of a successful device-pairing handshake (device-pairing-plan.md, Track B).
+  // Result of a successful device-pairing handshake.
   struct PairResult {
     std::string writeToken;               // T — server-minted bearer token, saved on this device
     std::string nonce;                    // short, human-typeable code shown beside the QR
