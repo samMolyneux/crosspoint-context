@@ -6,14 +6,16 @@ exactly one `{slot, writeToken, readToken}` record.
 
 ## Endpoints
 
-Base path: `/c` (the relay serves only this path; anything else → 404).
+Write path: `/ingest` (what the firmware posts to). Read path: `/c` (what the consumer
+reads). `POST /c` is accepted as an identical legacy/manual write alias. Any other path → 404.
 
-### `POST /c` — write (the e-reader pushes)
+### `POST /ingest` — write (the e-reader pushes)
 - Header: `Authorization: Bearer <WRITE_TOKEN>` (required)
 - Header: `Content-Type: text/markdown`
 - Transfer-Encoding: `chunked` is allowed (firmware streams page-by-page). The relay
-  assembles the full body regardless (`await req.text()`).
+  assembles the full body regardless (`await req.arrayBuffer()`).
 - Body: the markdown document defined under **Body format** below.
+- `POST /c` is accepted as an identical legacy/manual alias.
 - Responses:
   - `200` `OK` — stored.
   - `401` `Unauthorized` — missing/unknown token (not the known `writeToken`).
@@ -26,7 +28,7 @@ Base path: `/c` (the relay serves only this path; anything else → 404).
   - `401` `Unauthorized` — missing/unknown token (not the known `readToken`).
   - `404` `No context yet` — nothing has been POSTed for this slot.
 
-### Other methods → `405 Method not allowed`.
+### Other paths → `404`; wrong method on a known path → `405 Method not allowed`.
 
 ## Auth model
 - Tokens are long random base64url strings (32 bytes). Two distinct tokens: **write**
